@@ -104,7 +104,7 @@ class Dataset():
             label_batch = torch.cat((label_batch,label),0)
 
 
-        return {im_batch,label_batch} 
+        return im_batch,label_batch 
 
 
 

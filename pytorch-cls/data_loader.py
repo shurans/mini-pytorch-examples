@@ -82,7 +82,7 @@ class Dataset():
             class_batch[x] = float(im_class)
 
 
-        return {im_batch,class_batch} 
+        return im_batch,class_batch
 
 
 
