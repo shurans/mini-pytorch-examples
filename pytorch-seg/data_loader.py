@@ -75,6 +75,7 @@ class Dataset():
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
         label_batch = torch.LongTensor()
+        
         for x in range(self.batchSize):
             self.currIdx = self.currIdx+1
             if  self.currIdx  >= len(self.datalist):

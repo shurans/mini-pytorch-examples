@@ -79,7 +79,7 @@ class Dataset():
             
 
             im_batch = torch.cat((im_batch,im),0)
-            class_batch[x] = float(im_class)
+            class_batch[x] = im_class
 
 
         return im_batch,class_batch
