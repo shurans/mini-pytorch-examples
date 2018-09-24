@@ -36,11 +36,11 @@ class Dataset():
 
     def size(self):
         return len(self.datalist)
-    
+
     def shuffle(self):
         print("shuffling the dataset")
         random.shuffle(self.datalist)
-        
+
 
     def transformImage(self, im):
         transform_list = []
@@ -75,7 +75,7 @@ class Dataset():
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
         label_batch = torch.LongTensor()
-        
+
         for x in range(self.batchSize):
             self.currIdx = self.currIdx+1
             if  self.currIdx  >= len(self.datalist):
@@ -89,45 +89,46 @@ class Dataset():
             im = Image.open(im_path).convert("RGB")
             im = self.transformImage(im)
             im = im.unsqueeze(0)
-            
+
             # TODO: maybe can be done in a better way
             label = Image.open(label_path)
             label_np = np.asarray(label).copy()
-            
+
             # https://stackoverflow.com/questions/8188726/how-do-i-do-this-array-lookup-replace-with-numpy
             label_np = self.ordered_train_labels[label_np].astype(np.uint8)
-            
+
             label = Image.fromarray(label_np)
             label = self.transformLabel(label)
-            label = label.unsqueeze(0).type('torch.LongTensor') 
+            label = label.unsqueeze(0).type('torch.LongTensor')
 
             im_batch = torch.cat((im_batch,im),0)
             label_batch = torch.cat((label_batch,label),0)
 
 
-        return im_batch,label_batch 
+        return im_batch,label_batch
 
 
 
-    
+
 
 
 class Options():
     def __init__(self):
         parser = argparse.ArgumentParser(
-                formatter_class=argparse.ArgumentDefaultsHelpFormatter)        
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--dataroot',  default='./data/', help='path to images')
-        parser.add_argument('--file_list', default='./data/datalist', help='path to images')
+        parser.add_argument('--file_list', default='./data/datalist', help='list of file names in training data')
         parser.add_argument('--batchSize', type=int, default=4, help='input batch size')
-        parser.add_argument('--shuffle', type=bool, default=True, help='input batch size')
-        parser.add_argument('--phase', default='train', help='input batch size')
-        parser.add_argument('--num_epochs', type=int, default=10, help='input batch size')
+        parser.add_argument('--shuffle', type=bool, default=True, help='should the images be shuffled')
+        parser.add_argument('--phase', default='train', help='train/eval phase')
+        parser.add_argument('--num_epochs', type=int, default=10, help='num of epochs to train')
         parser.add_argument('--imsize', type=int, default=224, help='scale images to this size')
-        parser.add_argument('--num_classes', type=int, default=13, help='scale images to this size')
-        parser.add_argument('--gpu', default='0', help='scale images to this size')
+        parser.add_argument('--num_classes', type=int, default=13, help='num of classes in output')
+        parser.add_argument('--gpu', default='0', help='which GPU device to use')
+        parser.add_argument('--logs_path', default='logs/exp1', help='path of logs to be saved for TensorBoardX')
         self.parser = parser
-    
-    def parse(self):    
+
+    def parse(self):
         opt = self.parser.parse_args()
         return opt
 

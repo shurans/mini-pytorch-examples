@@ -1,0 +1,12 @@
+pytorch-seg/data/*
+!pytorch-seg/data/datalist
+!pytorch-seg/data/pytorchviz-digraph*
+!pytorch-seg/data/*.png
+__pycache__/
+!checkpoints/.gitkeep
+checkpoints/
+!logs/.gitkeep
+logs/
+models/__pycache__/
+pytorch-seg/train-model-exp1.sh
+

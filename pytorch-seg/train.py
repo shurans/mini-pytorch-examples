@@ -8,6 +8,8 @@ import time
 import os
 from data_loader import Dataset,Options
 import models.resnet_dilated as reset_dilated
+from tensorboardX import SummaryWriter
+
 
 # mkdir data
 # wget http://www.doc.ic.ac.uk/~ahanda/nyu_test_rgb.tgz
@@ -21,6 +23,10 @@ opt = Options().parse()
 phase = opt.phase
 device = torch.device("cuda:"+ opt.gpu if torch.cuda.is_available() else "cpu")
 
+###################### TensorBoardX #############################
+writer = SummaryWriter(opt.logs_path, comment='create-graph')
+graph_created = False
+
 ###################### DataLoader #############################
 dataloader = Dataset(opt)
 inputs, labels =  dataloader.get_batch()
@@ -30,7 +36,8 @@ inputs, labels =  dataloader.get_batch()
 model = reset_dilated.Resnet18_8s(num_classes=opt.num_classes)
 model = model.to(device)
 model.train()
-criterion = nn.CrossEntropyLoss(size_average=False).to(device)
+#criterion = nn.CrossEntropyLoss(size_average=False).to(device)
+criterion = nn.CrossEntropyLoss(reduction='sum').to(device)
 
 ###################### Setup Optimazation #############################
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
@@ -50,6 +57,13 @@ def flatten_annotations(annotations):
 def get_valid_annotations_index(flatten_annotations, mask_out_value=255):
     return torch.squeeze( torch.nonzero((flatten_annotations != mask_out_value )), 1)
 
+inputs, labels =  dataloader.get_batch()
+inputs = inputs.to(device)
+
+
+###################### Train Model #############################
+# Calculate total iter_num
+total_iter_num = 0
 
 for epoch in range(opt.num_epochs):
     print('Epoch {}/{}'.format(epoch, opt.num_epochs - 1))
@@ -61,13 +75,15 @@ for epoch in range(opt.num_epochs):
 
     # Iterate over data.
     for i in range(int(dataloader.size()/opt.batchSize)):
+        total_iter_num += 1
+
         inputs, labels =  dataloader.get_batch()
 
         inputs = inputs.to(device)
         labels = labels.to(device)
 
-        
-        # We need to flatten annotations and logits to apply index of valid annotations. 
+
+        # We need to flatten annotations and logits to apply index of valid annotations.
         anno_flatten = flatten_annotations(labels)
         index = get_valid_annotations_index(anno_flatten, mask_out_value=255)
         anno_flatten_valid = torch.index_select(anno_flatten, 0, index)
@@ -79,22 +95,31 @@ for epoch in range(opt.num_epochs):
         logits_flatten = flatten_logits(logits, number_of_classes=opt.num_classes)
         logits_flatten_valid = torch.index_select(logits_flatten, 0, index)
         loss = criterion(logits_flatten_valid, anno_flatten_valid)
+
+        ###################### Create Graph #############################
+        if graph_created == False:
+            graph_created = True
+            writer.add_graph(model, inputs, verbose=False)
+        #################################################################
+
         loss.backward()
         optimizer.step()
-            
+
         # statistics
-        running_loss += (loss.item() / logits_flatten_valid.size(0)) 
-        
+        loss_num = (loss.item() / logits_flatten_valid.size(0))
+        running_loss += loss_num
+        writer.add_scalar('running_loss', loss_num, total_iter_num)
+
         if (i%10 == 0) :
             print('{} Loss: {:.4f}'.format(phase, (loss.item() / logits_flatten_valid.size(0)) ))
 
         if (i%1000 == 0) :
-            filename = 'checkpoint-{}-{}.pt'.format(epoch,i)
-            model.save_state_dict(filename)
+            filename = 'checkpoints/checkpoint-{}-{}.pt'.format(epoch,i)
+            #model.save_state_dict(filename)
+            torch.save(model.state_dict(), filename)
 
     epoch_loss = running_loss / dataloader.size()
     print('{} Loss: {:.4f}'.format(phase, epoch_loss))
-    filename = 'checkpoint-{}-{}.pt'.format(epoch,i)
-    model.save_state_dict(filename)
-
-
+    filename = 'checkpoints/checkpoint-{}-{}.pt'.format(epoch,i)
+    #model.save_state_dict(filename)
+    torch.save(model.state_dict(), filename)
