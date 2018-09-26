@@ -10,3 +10,8 @@ logs/
 models/__pycache__/
 pytorch-seg/train-model-exp1.sh
 
+pytorch-normals/.ipynb_checkpoints/*
+pytorch-normals/data/
+!pytorch-normals/data/datalist
+!pytorch-normals/data/*.png
+
