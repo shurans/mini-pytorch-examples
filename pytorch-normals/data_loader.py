@@ -8,6 +8,7 @@ import torch
 import matplotlib.pyplot as plt
 import random
 import argparse
+import OpenEXR, Imath
 
 class Dataset():
     def __init__(self, opt):
@@ -71,10 +72,46 @@ class Dataset():
             plt.title(title)
         plt.pause(1)  # pause a bit so that plots are updated
 
+    def exr_loader(self, EXR_PATH, ndim=3):
+        """
+        loads an .exr file as a numpy array
+        :param path: path to the file
+        :param ndim: number of channels that the image has,
+                        if 1 the 'R' channel is taken
+                        if 3 the 'R', 'G' and 'B' channels are taken
+        :return: np.array containing the .exr image
+        """
+
+        exr_file = OpenEXR.InputFile(EXR_PATH)
+        cm_dw = exr_file.header()['dataWindow']
+        size = (cm_dw.max.x - cm_dw.min.x + 1, cm_dw.max.y - cm_dw.min.y + 1)
+
+        pt = Imath.PixelType(Imath.PixelType.FLOAT)
+
+        if ndim == 3:
+            # read channels indivudally
+            allchannels = []
+            for c in ['R', 'G', 'B']:
+                # transform data to numpy
+                channel = np.frombuffer(exr_file.channel(c, pt), dtype=np.float32)
+                channel.shape = (size[1], size[0])
+                allchannels.append(channel)
+
+            # create array and transpose dimensions to match tensor style
+            exr_arr = np.array(allchannels).transpose((0, 1, 2))
+            return exr_arr
+
+        if ndim == 1:
+            # transform data to numpy
+            channel = np.fromstring(channel=pic.channel('R', pt), dtype=np.float32)
+            channel.shape = (size[1], size[0])  # Numpy arrays are (row, col)
+            exr_arr = np.array(channel)
+            return exr_arr
+
     def get_batch(self):
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
-        label_batch = torch.LongTensor()
+        label_batch = torch.FloatTensor()
 
         for x in range(self.batchSize):
             self.currIdx = self.currIdx+1
@@ -90,6 +127,7 @@ class Dataset():
             im = self.transformImage(im)
             im = im.unsqueeze(0)
 
+            ''' Load Label as Tensor
             # TODO: maybe can be done in a better way
             label = Image.open(label_path)
             label_np = np.asarray(label).copy()
@@ -100,10 +138,15 @@ class Dataset():
             label = Image.fromarray(label_np)
             label = self.transformLabel(label)
             label = label.unsqueeze(0).type('torch.LongTensor')
+            '''
 
+            label = self.exr_loader(label_path, ndim=3)
+            label_tensor = torch.from_numpy(label)
+            label_img = transforms.ToPILImage(mode='RGB')(label_tensor)
+            label_cropped = self.transformLabel(label_img)
+            
             im_batch = torch.cat((im_batch,im),0)
-            label_batch = torch.cat((label_batch,label),0)
-
+            label_batch = torch.cat((label_batch,label_cropped.unsqueeze(0)),0)
 
         return im_batch,label_batch
 
