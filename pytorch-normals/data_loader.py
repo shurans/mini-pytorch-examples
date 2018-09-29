@@ -108,6 +108,13 @@ class Dataset():
             exr_arr = np.array(channel)
             return exr_arr
 
+    def normals_to_rgb(self, normals_to_convert):
+        normals_to_convert[normals_to_convert < 0] = 0
+        camera_normal_rgb = normals_to_convert
+        camera_normal_rgb *= 255
+        camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
+        return camera_normal_rgb
+
     def get_batch(self):
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
@@ -144,7 +151,7 @@ class Dataset():
             label_tensor = torch.from_numpy(label)
             label_img = transforms.ToPILImage(mode='RGB')(label_tensor)
             label_cropped = self.transformLabel(label_img)
-            
+
             im_batch = torch.cat((im_batch,im),0)
             label_batch = torch.cat((label_batch,label_cropped.unsqueeze(0)),0)
 
