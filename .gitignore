@@ -12,7 +12,7 @@ logs/
 models/__pycache__/
 
 pytorch-normals/.ipynb_checkpoints/*
-pytorch-normals/data/
+pytorch-normals/data/*
 !pytorch-normals/data/datalist
 !pytorch-normals/data/*.png
 pytorch-normals/logs
