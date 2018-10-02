@@ -2,16 +2,18 @@ pytorch-seg/data/*
 !pytorch-seg/data/datalist
 !pytorch-seg/data/pytorchviz-digraph*
 !pytorch-seg/data/*.png
+pytorch-seg/train-model-exp1.sh
+
 __pycache__/
 !checkpoints/.gitkeep
 checkpoints/
 !logs/.gitkeep
 logs/
 models/__pycache__/
-pytorch-seg/train-model-exp1.sh
 
 pytorch-normals/.ipynb_checkpoints/*
 pytorch-normals/data/
 !pytorch-normals/data/datalist
 !pytorch-normals/data/*.png
-
+pytorch-normals/logs
+pytorch-normals/Test_misc_functions.ipynb
