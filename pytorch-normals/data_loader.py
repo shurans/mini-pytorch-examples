@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import random
 import argparse
 import OpenEXR, Imath
+from skimage.transform import resize
 
 class Dataset():
     def __init__(self, opt):
@@ -115,6 +116,13 @@ class Dataset():
         camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
         return camera_normal_rgb
 
+
+    def normal_to_rgb_with_negatives(self, normals_to_convert):
+        camera_normal_rgb = normals_to_convert + 1
+        camera_normal_rgb *= 127.5
+        camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
+        return camera_normal_rgb
+
     def get_batch(self):
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
@@ -147,13 +155,17 @@ class Dataset():
             label = label.unsqueeze(0).type('torch.LongTensor')
             '''
 
-            label = self.exr_loader(label_path, ndim=3)
-            label_tensor = torch.from_numpy(label)
-            label_img = transforms.ToPILImage(mode='RGB')(label_tensor)
-            label_cropped = self.transformLabel(label_img)
+            # Read in converted surface normals from the numpy files.
+            label = np.load(label_path)
+            label[label > 1] = 1
+            label[label < -1] = -1
+            label = label.transpose(1,2,0)
+            label_resized = resize(label, (self.imsize,self.imsize))
+            label_resized = label_resized.transpose(2,0,1)
+            label_tensor = torch.tensor(label_resized, dtype=torch.float)
 
             im_batch = torch.cat((im_batch,im),0)
-            label_batch = torch.cat((label_batch,label_cropped.unsqueeze(0)),0)
+            label_batch = torch.cat((label_batch,label_tensor.unsqueeze(0)),0)
 
         return im_batch,label_batch
 
