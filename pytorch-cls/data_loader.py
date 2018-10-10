@@ -106,6 +106,7 @@ class Options():
         parser.add_argument('--num_epochs', type=int, default=10, help='input batch size')
         parser.add_argument('--imsize', type=int, default=224, help='scale images to this size')
         parser.add_argument('--has_class_label', type=int, default=1, help='scale images to this size')
+        parser.add_argument('--how_many', type=int, default=5000, help='scale images to this size')
         parser.add_argument('--gpu', default='0', help='scale images to this size')
         self.parser = parser
     
