@@ -9,7 +9,7 @@ import os
 from data_loader import Dataset,Options
 import h5py
 
-# python3 extract_feature.py --file_list=../../illummap/pytorch-learning/trainlist_NN.txt --dataroot=/n/fs/rgbd/data/matterport/v1/ 
+# python3 extract_feature.py --gpu=4  --file_list=../../illummaps/pytorch-learning/datalist/trainlist_NN.txt --dataroot=/n/fs/rgbd/data/matterport/v1/ 
 # python3 extract_feature.py --file_list=../../illummaps/pytorch-learning/datalist/trainlist_NN_small.txt --dataroot=../../data/matterport/v1/ 
 
 ###################### Options #############################
@@ -18,6 +18,7 @@ opt.batchsize = 1
 opt.shuffle = False  # no shuffle
 opt.has_class_label = 0
 phase = opt.phase
+#opt.how_many = 10000
 device = torch.device("cuda:"+ opt.gpu if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -39,7 +40,7 @@ for i in range(int(dataloader.size()/opt.batchSize)):
     inputs = inputs.to(device)
     outputs = model(inputs)
     print(outputs.size())
-    features[cnt:cnt+opt.batchSize,:] = outputs
+    features[cnt:cnt+opt.batchSize,:] = outputs.cpu()
     cnt = cnt+opt.batchSize
     print('%d,%d/%d'%(i,cnt,dataloader.size()))
 
