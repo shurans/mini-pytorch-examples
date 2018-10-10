@@ -18,6 +18,7 @@ class Dataset():
         self.phase = opt.phase
         self.currIdx = 0
         self.imsize = opt.imsize
+        self.has_class_label = opt.has_class_label
         self.read_file_list()
         if self.doshuffle:
             self.shuffle()
@@ -71,7 +72,10 @@ class Dataset():
                    self.shuffle()
 
             im_path = self.dataroot + self.datalist[self.currIdx][0]
-            im_class = self.datalist[self.currIdx][1]
+            if self.has_class_label:
+                im_class = self.datalist[self.currIdx][1]
+            else:
+                im_class = 0
 
             im = Image.open(im_path).convert("RGB")
             im = self.transformImage(im)
@@ -101,6 +105,7 @@ class Options():
         parser.add_argument('--phase', default='train', help='input batch size')
         parser.add_argument('--num_epochs', type=int, default=10, help='input batch size')
         parser.add_argument('--imsize', type=int, default=224, help='scale images to this size')
+        parser.add_argument('--has_class_label', type=int, default=1, help='scale images to this size')
         parser.add_argument('--gpu', default='0', help='scale images to this size')
         self.parser = parser
     
