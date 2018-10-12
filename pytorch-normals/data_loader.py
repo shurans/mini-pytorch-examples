@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import random
 import argparse
 import OpenEXR, Imath
+from skimage.transform import resize
 
 class Dataset():
     def __init__(self, opt):
@@ -115,6 +116,13 @@ class Dataset():
         camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
         return camera_normal_rgb
 
+
+    def normals_to_rgb_with_negatives(self, normals_to_convert):
+        camera_normal_rgb = normals_to_convert + 1
+        camera_normal_rgb *= 127.5
+        camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
+        return camera_normal_rgb
+
     def get_batch(self):
         # this function get image and segmentation mask
         im_batch = torch.Tensor()
@@ -129,32 +137,18 @@ class Dataset():
 
             im_path = self.dataroot + self.datalist[self.currIdx][0]
             label_path = self.dataroot + self.datalist[self.currIdx][1]
-
-            im = Image.open(im_path).convert("RGB")
-            im = self.transformImage(im)
+		
+            # Open pre-processed imgs 
+            im = np.load(im_path)
+            im = torch.tensor(im, dtype=torch.float)
             im = im.unsqueeze(0)
 
-            ''' Load Label as Tensor
-            # TODO: maybe can be done in a better way
-            label = Image.open(label_path)
-            label_np = np.asarray(label).copy()
-
-            # https://stackoverflow.com/questions/8188726/how-do-i-do-this-array-lookup-replace-with-numpy
-            label_np = self.ordered_train_labels[label_np].astype(np.uint8)
-
-            label = Image.fromarray(label_np)
-            label = self.transformLabel(label)
-            label = label.unsqueeze(0).type('torch.LongTensor')
-            '''
-
-            label = self.exr_loader(label_path, ndim=3)
-            label_tensor = torch.from_numpy(label)
-            label_img = transforms.ToPILImage(mode='RGB')(label_tensor)
-            label_cropped = self.transformLabel(label_img)
-
+            # Open pre-processed surface normals
+            label = np.load(label_path)
+            label_tensor = torch.tensor(label, dtype=torch.float)
+            label_tensor = label_tensor.unsqueeze(0)
             im_batch = torch.cat((im_batch,im),0)
-            label_batch = torch.cat((label_batch,label_cropped.unsqueeze(0)),0)
-
+            label_batch = torch.cat((label_batch,label_tensor),0)
         return im_batch,label_batch
 
 
