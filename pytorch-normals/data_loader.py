@@ -104,7 +104,7 @@ class Dataset():
 
         if ndim == 1:
             # transform data to numpy
-            channel = np.fromstring(channel=pic.channel('R', pt), dtype=np.float32)
+            channel = np.frombuffer(exr_file.channel('R', pt), dtype=np.float32)
             channel.shape = (size[1], size[0])  # Numpy arrays are (row, col)
             exr_arr = np.array(channel)
             return exr_arr
