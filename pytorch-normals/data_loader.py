@@ -104,7 +104,7 @@ class Dataset():
 
         if ndim == 1:
             # transform data to numpy
-            channel = np.fromstring(channel=pic.channel('R', pt), dtype=np.float32)
+            channel = np.frombuffer(exr_file.channel('R', pt), dtype=np.float32)
             channel.shape = (size[1], size[0])  # Numpy arrays are (row, col)
             exr_arr = np.array(channel)
             return exr_arr
@@ -137,8 +137,8 @@ class Dataset():
 
             im_path = self.dataroot + self.datalist[self.currIdx][0]
             label_path = self.dataroot + self.datalist[self.currIdx][1]
-		
-            # Open pre-processed imgs 
+
+            # Open pre-processed imgs
             im = np.load(im_path)
             im = torch.tensor(im, dtype=torch.float)
             im = im.unsqueeze(0)
