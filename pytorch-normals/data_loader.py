@@ -137,8 +137,8 @@ class Dataset():
 
             im_path = self.dataroot + self.datalist[self.currIdx][0]
             label_path = self.dataroot + self.datalist[self.currIdx][1]
-		
-            # Open pre-processed imgs 
+
+            # Open pre-processed imgs
             im = np.load(im_path)
             im = torch.tensor(im, dtype=torch.float)
             im = im.unsqueeze(0)
