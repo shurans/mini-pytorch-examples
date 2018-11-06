@@ -32,6 +32,8 @@ optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 # Decay LR by a factor of 0.1 every 7 epochs
 exp_lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
+
+iter_count = 0
 for epoch in range(opt.num_epochs):
     print('Epoch {}/{}'.format(epoch, opt.num_epochs - 1))
     print('-' * 10)
@@ -61,13 +63,19 @@ for epoch in range(opt.num_epochs):
             # backward + optimize 
             loss.backward()
             optimizer.step()
-            
+            print(preds)
 
-        # statistics
+         # statistics
         running_loss += loss.item() * inputs.size(0)
         running_corrects += torch.sum(preds == labels.data)
-
-        print('{} Loss: {:.4f}'.format(phase, loss.item()))
+        
+        if iter_count%10==0:
+            print('{} Loss: {:.4f}'.format(phase, loss.item()))
+        
+        if iter_count%100==0:
+            save_filename = '%s_net_%s.pth' % (iter_count,opt.name)
+            torch.save(model.state_dict(), save_filename)
+        iter_count = iter_count+1
 
     epoch_loss = running_loss / dataloader.size()
     epoch_acc = running_corrects.double() / dataloader.size()

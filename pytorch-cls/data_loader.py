@@ -83,7 +83,7 @@ class Dataset():
             
 
             im_batch = torch.cat((im_batch,im),0)
-            class_batch[x] = im_class
+            class_batch[x] = int(im_class)
 
 
         return im_batch,class_batch
@@ -108,6 +108,9 @@ class Options():
         parser.add_argument('--has_class_label', type=int, default=1, help='scale images to this size')
         parser.add_argument('--how_many', type=int, default=5000, help='scale images to this size')
         parser.add_argument('--gpu', default='0', help='scale images to this size')
+        parser.add_argument('--name', default='exp', help='scale images to this size')
+        parser.add_argument('--test_im', default='exp', help='scale images to this size')
+       
         self.parser = parser
     
     def parse(self):    
@@ -125,3 +128,5 @@ class Options():
 #         outim, outlabel = dataloader.get_batch()
 #         im_vis = torchvision.utils.make_grid(outim)
 #         dataloader.imshow(im_vis)
+
+
