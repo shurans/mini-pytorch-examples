@@ -121,7 +121,7 @@ class Options():
         parser.add_argument('--batchSize', type=int, default=4, help='input batch size')
         parser.add_argument('--shuffle', type=bool, default=True, help='should the images be shuffled')
         parser.add_argument('--phase', default='train', help='train/eval phase')
-        parser.add_argument('--num_epochs', type=int, default=10, help='num of epochs to train')
+        parser.add_argument('--num_epochs', type=int, default=1, help='num of epochs to train')
         parser.add_argument('--imsize', type=int, default=224, help='scale images to this size')
         parser.add_argument('--num_classes', type=int, default=13, help='num of classes in output')
         parser.add_argument('--gpu', default='0', help='which GPU device to use')

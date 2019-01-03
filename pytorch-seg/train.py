@@ -47,8 +47,17 @@ exp_lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma
 def flatten_logits(logits, number_of_classes):
     """Flattens the logits batch except for the logits dimension"""
     logits_permuted = logits.permute(0, 2, 3, 1)
+    print('\n logits_permuted dim:')
+    print(logits_permuted.shape)
+
     logits_permuted_cont = logits_permuted.contiguous()
+    print('\n logits_permuted_cont dim:')
+    print(logits_permuted_cont.shape)
+
     logits_flatten = logits_permuted_cont.view(-1, number_of_classes)
+    print('\n logits_flatten dim:')
+    print(logits_flatten.shape)
+
     return logits_flatten
 
 def flatten_annotations(annotations):
@@ -84,14 +93,28 @@ for epoch in range(opt.num_epochs):
 
 
         # We need to flatten annotations and logits to apply index of valid annotations.
+        print('\nlabels dim:')
+        print(labels.shape)
+
         anno_flatten = flatten_annotations(labels)
+        print('\nanno_flatten dim:')
+        print(anno_flatten.shape)
+
         index = get_valid_annotations_index(anno_flatten, mask_out_value=255)
+        print('\nindex dim:')
+        print(index.shape)
+
         anno_flatten_valid = torch.index_select(anno_flatten, 0, index)
+        print('\nanno_flatten_valid dim:')
+        print(anno_flatten_valid.shape)
 
         # fowrad + backward
         optimizer.zero_grad()
         torch.set_grad_enabled(True)
         logits = model(inputs)
+        print('\nlogits dim:')
+        print(logits.shape)
+
         logits_flatten = flatten_logits(logits, number_of_classes=opt.num_classes)
         logits_flatten_valid = torch.index_select(logits_flatten, 0, index)
         loss = criterion(logits_flatten_valid, anno_flatten_valid)
