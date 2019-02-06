@@ -49,9 +49,6 @@ class Dataset():
 
     def transformImage(self, im):
         transform_list = []
-        transform_list.append(transforms.Normalize(
-            mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255], std=[1/0.229, 1/0.224, 1/0.255])) #inv norm of pre-preprocessed data
-        transform_list.append(transforms.ToPILImage(mode=3))
         transform_list.append(transforms.Resize(self.imsize, interpolation = Image.BILINEAR))
         transform_list.append(transforms.ToTensor())
         transform_list.append(transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])) #[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
@@ -84,20 +81,13 @@ class Dataset():
             label_path = self.dataroot + self.datalist[self.currIdx][1]
 
             # Open pre-processed imgs
-            im = np.load(im_path)
-            # im = im.transpose((1,2,0)).astype(np.uint8)
-            # im = Image.fromarray(im)
-            # im = self.transformImage(im)
-
-            im = torch.tensor(im, dtype=torch.float)
-
+            im = Image.open(im_path)
+            im = self.transformImage(im)
             im = im.unsqueeze(0)
-            # print('im shape ', im.shape)
 
 
             # Open outlines
             label = Image.open(label_path)
-
 
             # https://stackoverflow.com/questions/8188726/how-do-i-do-this-array-lookup-replace-with-numpy
             label_np = np.asarray(label).copy().astype(np.float)
@@ -106,7 +96,7 @@ class Dataset():
 
             # print(label)
             label = self.transformLabel(label)
-            label = label.unsqueeze(0).type('torch.LongTensor')
+            label = label.unsqueeze(0).long()
 
             # Create batches out of data
             im_batch=torch.cat((im_batch, im), 0)
