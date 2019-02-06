@@ -17,6 +17,7 @@ pytorch-normals/data/*
 !pytorch-normals/data/*.png
 pytorch-normals/logs
 pytorch-normals/Test_misc_functions.ipynb
+pytorch-normals/logs*
 
 pytorch-outlines/.ipynb_checkpoints/*
 pytorch-outlines/data/*
