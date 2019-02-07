@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+'''
+Script to visualize scaled  output depth image. 
+'''
+
 import sys, os
 from PIL import Image
 from matplotlib import pyplot as plt
