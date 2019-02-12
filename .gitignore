@@ -24,3 +24,4 @@ pytorch-outlines/data/*
 !pytorch-outlines/data/datalist
 !pytorch-normals/data/*.png
 pytorch-outlines/logs
+pytorch-outlines/cloud_logs
