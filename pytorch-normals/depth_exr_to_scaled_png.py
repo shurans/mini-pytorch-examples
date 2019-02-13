@@ -18,6 +18,10 @@ from torch import nn
 from sklearn import preprocessing
 from skimage.transform import resize
 
+'''
+This script takes in a depth image in .exr format. 
+Then it cuts out a hole in it and converts it as a scaled png image. Used as input to the depth2depth module.
+'''
 
 def exr_loader(EXR_PATH, ndim=3):
 
@@ -83,7 +87,7 @@ def main():
     print('Will make half of img horizontally zero during conversion to test depth2depth executable')
 
     for root, dirs, files in os.walk(args.depth_path):
-        for filename in fnmatch.filter(files, '*depth.exr'):
+        for filename in sorted(fnmatch.filter(files, '*depth.exr')):
             name = filename[:-4] + '.png'
             np_image = exr_loader(os.path.join(args.depth_path, filename), ndim=1)
             np_image = np_image * scale_value
@@ -91,8 +95,8 @@ def main():
             height, width = np_image.shape
             # h_start, h_stop = (height//8)*5, (height//8)*6
             # w_start, w_stop = (width//8)*5, (width//8)*6
-            h_start, h_stop = (height//8)*0, (height//8)*8
-            w_start, w_stop = (width//8)*0, (width//8)*4
+            h_start, h_stop = (height//8)*5, (height//8)*6
+            w_start, w_stop = (width//8)*5, (width//8)*6
 
             # Make half the image zero for testing depth2depth
             np_image[h_start:h_stop, w_start:w_stop] = 0
