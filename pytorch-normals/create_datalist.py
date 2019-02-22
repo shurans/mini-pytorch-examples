@@ -1,5 +1,5 @@
 f = open("data/datalist", "w+")
-for i in range(0,2400):
-    f.write("train/preprocessed-rgb-imgs/%09d-rgb.npy,train/preprocessed-camera-normals/%09d-cameraNormals.npy\n"%(i, i))
+for i in range(0,100):
+    f.write("train/rgb-imgs/%09d-rgb.jpg,train/camera-normals/%09d-cameraNormals.npy\n"%(i, i))
 
 f.close()

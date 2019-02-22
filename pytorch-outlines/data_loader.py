@@ -8,11 +8,8 @@ import torch
 import matplotlib.pyplot as plt
 import random
 import argparse
-import OpenEXR
-import Imath
+import OpenEXR, Imath
 from skimage.transform import resize
-import imageio
-import cv2
 
 
 class Dataset():
@@ -22,7 +19,7 @@ class Dataset():
         self.batchSize = opt.batchSize
         self.doshuffle = opt.shuffle
         self.phase = opt.phase
-        self.currIdx = 0
+        self.currIdx = -1
         self.imsize = opt.imsize
         self.read_file_list()
 
