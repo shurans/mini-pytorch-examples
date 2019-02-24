@@ -1,4 +1,6 @@
 __pycache__/
+.mypy_cache/
+.vscode/
 
 pytorch-normals/.ipynb_checkpoints/*
 pytorch-normals/data/*

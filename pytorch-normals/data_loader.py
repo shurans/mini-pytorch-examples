@@ -140,31 +140,26 @@ class Dataset():
             label_path = self.dataroot + self.datalist[self.currIdx][1]
 
             # Open pre-processed imgs
-            # im = np.load(im_path)
-            # im = torch.tensor(im, dtype=torch.float)
-            # im = im.unsqueeze(0)
             im = Image.open(im_path)
             im = self.transformImage(im)
             im = im.unsqueeze(0)
 
             # Open pre-processed surface normals
-            # label = np.load(label_path)
-            # label_tensor = torch.tensor(label, dtype=torch.float)
-            # label_tensor = label_tensor.unsqueeze(0)
-            normals = np.load(label_path)
-            # TODO: Use PIL to resize instead of skimage.
-            # normals = normals.transpose(1, 2, 0)
-            # normal = Image.fromarray(normals, 'RGB')
+            normals = self.exr_loader(label_path, ndim=3)
+            # normals = torch.from_numpy(normals).float().unsqueeze(0)
+
+            # Resize the normals
+            normals = normals.transpose(1, 2, 0)
             normals_resized = resize(normals, self.imsize, anti_aliasing=True, clip=True, mode='reflect')
             normals_resized = normals_resized.transpose(2, 0, 1)
 
             # Normalize the normals
             normals = torch.from_numpy(normals_resized)
-            normal_vectors_norm = torch.nn.functional.normalize(normals, p=2, dim=0)
-            label_tensor = normal_vectors_norm.float()
+            normals = nn.functional.normalize(normals, p=2, dim=0)
+            normals = normals.unsqueeze(0)
 
             im_batch = torch.cat((im_batch, im),0)
-            label_batch = torch.cat((label_batch, label_tensor),0)
+            label_batch = torch.cat((label_batch, normals),0)
 
         return im_batch, label_batch
 

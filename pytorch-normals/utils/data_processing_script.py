@@ -16,56 +16,76 @@ import concurrent.futures
 
 from PIL import Image
 from pathlib import Path
-from scipy.misc import imsave
+#from scipy.misc import imsave
+from imageio import imsave
 
 import torch
 import torchvision
 from torchvision import transforms, utils
 from torch import nn
-from sklearn import preprocessing
 from skimage.transform import resize
 
 
 SUBFOLDER_MAP = {
-    'rgb-files':        {'postfix': '-rgb.jpg',
-                         'folder-name': 'rgb-imgs'},
-    'depth-files':      {'postfix': '-depth.exr',
-                         'folder-name': 'depth-imgs'},
-    'json-files':       {'postfix': '-masks.json',
-                         'folder-name': 'json-files'},
-    'world-normals':    {'postfix': '-normals.exr',
-                         'folder-name': 'world-normals'},
-    'variant-masks':    {'postfix': '-variantMasks.exr',
-                         'folder-name': 'variant-masks'},
-    'component-masks':  {'postfix': '-componentMasks.exr',
-                         'folder-name': 'component-masks'},
-    'camera-normals':   {'postfix': '-cameraNormals.npy',
-                         'folder-name': 'camera-normals'},
-    'camera-normals-rgb':  {'postfix': '-cameraNormals.png',
-                            'folder-name': 'camera-normals/rgb-visualizations'},
+    'rgb-files'         :{'postfix'      : '-rgb.jpg',
+                          'folder-name'  : 'rgb-imgs'},
+
+    'depth-files'       :{'postfix'      : '-depth.exr',
+                          'folder-name'  : 'depth-imgs'},
+
+    'json-files'        :{'postfix'      : '-masks.json',
+                          'folder-name'  : 'json-files'},
+
+    'world-normals'     :{'postfix'      : '-normals.exr',
+                          'folder-name'  : 'world-normals'},
+
+    'variant-masks'     :{'postfix'      : '-variantMasks.exr',
+                          'folder-name'  : 'variant-masks'},
+
+    'component-masks'   :{'postfix'      : '-componentMasks.exr',
+                          'folder-name'  : 'component-masks'},
+
+    'camera-normals'    :{'postfix'      : '-cameraNormals.exr',
+                          'folder-name'  : 'camera-normals'},
+
+    'camera-normals-rgb':{'postfix'      : '-cameraNormals.png',
+                          'folder-name'  : 'camera-normals/rgb-visualizations'},
+}
+
+SUBFOLDER_MAP_TEST = {
+    'rgb-files'         :{'postfix'      : '-rgb.jpg',
+                          'folder-name'  : 'rgb-imgs'},
+
+    'depth-files'       :{'postfix'      : '-depth.npy',
+                          'folder-name'  : 'depth-imgs'},
 }
 
 NEW_DATASET_PATHS = {
-    'root': 'data',
-    'source-files': 'source-files',
-    'training-data': 'train',
+    'root'          : '../data',
+    'source-files'  : 'source-files',
+    'training-data' : 'resized-files',
 }
 
-SUBFOLDER_MAP_TRAIN = {
-    'preprocessed-rgb-imgs':  {'postfix': '-rgb.npy',
-                               'folder-name': 'preprocessed-rgb-imgs'},
-    'preprocessed-camera-normals':  {'postfix': '-cameraNormals.npy',
-                                     'folder-name': 'preprocessed-camera-normals'},
-    'preprocessed-camera-normals-viz':  {'postfix': '-cameraNormals.png',
-                                         'folder-name': 'preprocessed-camera-normals/rgb-visualizations'},
-    'preprocessed-rgb-imgs-viz':  {'postfix': '-rgb.png',
-                                   'folder-name': 'preprocessed-rgb-imgs/rgb-visualizations'},
+SUBFOLDER_MAP_RESIZED = {
+    'preprocessed-camera-normals'       :{'postfix': '-cameraNormals.exr',
+                                          'folder-name': 'preprocessed-camera-normals'},
+
+    'preprocessed-camera-normals-viz'   :{'postfix': '-cameraNormals.png',
+                                          'folder-name': 'preprocessed-camera-normals/rgb-visualizations'},
+
+    'preprocessed-rgb-imgs'             :{'postfix': '-rgb.png',
+                                          'folder-name': 'preprocessed-rgb-imgs'},
+}
+
+SUBFOLDER_MAP_RESIZED_TEST = {
+    'preprocessed-rgb-imgs'             :{'postfix': '-rgb.png',
+                                          'folder-name': 'preprocessed-rgb-imgs'},
 }
 
 
 ################################ RENAME AND MOVE ################################
 def scene_prefixes(dataset_path):
-    '''Returns a list of prefixes of all the json files present in dataset
+    '''Returns a list of prefixes of all the rgb files present in dataset
     Eg, if our file is named 000000234-rgb.jpb, prefix is '000000234'
 
     Every set of images in dataset will contain 1 masks.json file, hence we can count just the json file.
@@ -79,9 +99,10 @@ def scene_prefixes(dataset_path):
     dataset_prefixes = []
     for root, dirs, files in os.walk(dataset_path):
         # one mask json file per scene so we can get the prefixes from them
-        json_filename = SUBFOLDER_MAP['json-files']['postfix']
-        for filename in fnmatch.filter(files, '*' + json_filename):
-            dataset_prefixes.append(filename[0:0 - len(json_filename)])
+        rgb_filename = SUBFOLDER_MAP['rgb-files']['postfix']
+        for filename in fnmatch.filter(files, '*' + rgb_filename):
+            dataset_prefixes.append(filename[0:0 - len(rgb_filename)])
+        break
     dataset_prefixes.sort()
     return dataset_prefixes
 
@@ -104,7 +125,8 @@ def move_and_rename_dataset(old_dataset_path, new_dataset_path, initial_value):
     Returns:
         count_renamed (int): Number of files that were renamed.
     '''
-    sorted_ints = string_prefixes_to_sorted_ints(scene_prefixes(old_dataset_path))
+    prefixes_str = scene_prefixes(old_dataset_path)
+    sorted_ints = string_prefixes_to_sorted_ints(prefixes_str)
 
     count_renamed = 0
     for i in range(len(sorted_ints)):
@@ -114,9 +136,10 @@ def move_and_rename_dataset(old_dataset_path, new_dataset_path, initial_value):
 
         for root, dirs, files in os.walk(old_dataset_path):
             for filename in fnmatch.filter(files, (old_prefix_str + '*')):
-                os.rename(os.path.join(old_dataset_path, filename), os.path.join(
+                shutil.move(os.path.join(old_dataset_path, filename), os.path.join(
                     new_dataset_path, filename.replace(old_prefix_str, new_prefix_str)))
                 count_renamed += 1
+            break
 
     return count_renamed
 
@@ -276,29 +299,50 @@ def exr_loader(EXR_PATH, ndim=3):
             exr_arr = np.array(channel)
             return exr_arr
 
-def exr_saver(EXR_PATH, ndarr):
+def exr_saver(EXR_PATH, ndarr, ndim=3):
     '''Saves a numpy array as an EXR file with HALF precision (float16)
     Args:
         EXR_PATH (str): The path to which file will be saved
-        ndarr (ndarray): A numpy array of shape (3 x height x width)
-    
+        ndarr (ndarray): A numpy array containing img data
+        ndim (int): The num of dimensions, either 3 or 1. If ndim = 3, ndarr should be of shape (3 x height x width),
+                    else if ndim = 1, ndarr should be of shape (height, width)
     Return:
         None
     '''
-    # Convert each channel to strings
-    Rs = ndarr[0,:,:].astype(np.float16).tostring()
-    Gs = ndarr[1,:,:].astype(np.float16).tostring()
-    Bs = ndarr[2,:,:].astype(np.float16).tostring()
+    if ndim == 3:
+        # Check params
+        if ndarr.shape[0] != 3 or len(ndarr.shape) != 3:
+            raise ValueError('The shape of the tensor should be 3 x height x width for ndim = 3. Given shape is {}'.format(ndarr.shape))
+        
+        # Convert each channel to strings
+        Rs = ndarr[0,:,:].astype(np.float16).tostring()
+        Gs = ndarr[1,:,:].astype(np.float16).tostring()
+        Bs = ndarr[2,:,:].astype(np.float16).tostring()
 
-    # Write the three color channels to the output file
-    HEADER = OpenEXR.Header(ndarr.shape[2], ndarr.shape[1])
-    half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
-    HEADER['channels'] = dict([(c, half_chan) for c in "RGB"])
-    
-    out = OpenEXR.OutputFile(EXR_PATH, HEADER)
-    out.writePixels({'R' : Rs, 'G' : Gs, 'B' : Bs })
-    out.close()
+        # Write the three color channels to the output file
+        HEADER = OpenEXR.Header(ndarr.shape[2], ndarr.shape[1])
+        half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
+        HEADER['channels'] = dict([(c, half_chan) for c in "RGB"])
+        
+        out = OpenEXR.OutputFile(EXR_PATH, HEADER)
+        out.writePixels({'R' : Rs, 'G' : Gs, 'B' : Bs })
+        out.close()
+    elif ndim == 1:
+        # Check params
+        if len(ndarr.shape) != 2:
+            raise ValueError('The shape of the tensor should be height x width for ndim = 1. Given shape is {}'.format(ndarr.shape))
 
+        # Convert each channel to strings
+        Rs = ndarr[:,:].astype(np.float16).tostring()
+        
+        # Write the color channel to the output file
+        HEADER = OpenEXR.Header(ndarr.shape[1], ndarr.shape[0])
+        half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
+        HEADER['channels'] = dict([(c, half_chan) for c in "R"])
+        
+        out = OpenEXR.OutputFile(EXR_PATH, HEADER)
+        out.writePixels({'R' : Rs})
+        out.close()
 
 def preprocess_world_to_cam(world_normals, json_files):
     '''Will convert normals from World co-ords to Camera co-ords
@@ -347,84 +391,77 @@ def preprocess_world_to_cam(world_normals, json_files):
 
     # Convert Normals to Camera Space
     camera_normal = world_to_camera_normals(inverted_camera_quaternation, exr_x, exr_y, exr_z)
-    camera_normal2 = camera_normal.copy()
+    # camera_normal2 = camera_normal.copy()
 
     # Output Converted EXR Files as numpy data
-    exr_arr = np.array(camera_normal).transpose((2, 0, 1))
-    np.save(output_camera_normal_file, exr_arr)
+    # exr_arr = np.array(camera_normal).transpose((2, 0, 1))
+    # np.save(output_camera_normal_file, exr_arr)
+
+    # Output Converted EXR Files
+    exr_arr = camera_normal.transpose((2, 0, 1))
+    exr_saver(output_camera_normal_file, exr_arr, ndim=3)
 
     # Output converted Normals as RGB images
-    camera_normal_rgb = normal_to_rgb(camera_normal2)
+    camera_normal_rgb = normal_to_rgb(camera_normal)
     imsave(camera_normal_rgb_file, camera_normal_rgb)
 
     return True
 
 
 ################################ PREPROCESS FOR MODEL ################################
-def transformImage(im, imsize):
-    """Pytorch func to Resize and Normalize images.
-
-    Args:
-        im (numpy array): 3 channel Numpy array containing image to be resized.
-
-    Returns:
-        numpy array: Converted image as Pytorch tensor.
-
-    """
-    transform_list = []
-    transform_list.append(transforms.Resize([imsize, imsize]))
-    transform_list.append(transforms.ToTensor())
-    transform_list.append(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
-    tf = transforms.Compose(transform_list)
-    im = tf(im)
-    return im
-
-
 def preprocess_normals(input):
     """Resize and Normalize Normals and save as Numpy array.
 
     Args:
-        normals_path (str): The path to a numpy array (.npy) that contains the normal to be converted.
-
+        normals_path (str): 
+        (normals_path, (height, width)) (tuple): normals_path (str)     = The path to an exr file that contains the normal to be preprocessed.
+                                                 (height, width)  (int) = The size to which image is to be resized.
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
 
     """
-    normals_path, normsize = input
+    normals_path, imsize = input
+
+    if len(imsize) != 2:
+        raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
 
     prefix = os.path.basename(normals_path)[0:0 - len(SUBFOLDER_MAP['camera-normals']['postfix'])]
 
     preprocess_normals_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                                 SUBFOLDER_MAP_TRAIN['preprocessed-camera-normals']['folder-name'])
+                                                 SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['folder-name'])
     preprocess_normal_viz_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                              SUBFOLDER_MAP_TRAIN['preprocessed-camera-normals-viz']['folder-name'])
+                                              SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals-viz']['folder-name'])
 
-    preprocess_normals_filename = prefix + SUBFOLDER_MAP_TRAIN['preprocessed-camera-normals']['postfix']
-    preprocess_normal_viz_filename = prefix + SUBFOLDER_MAP_TRAIN['preprocessed-camera-normals-viz']['postfix']
+    preprocess_normals_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['postfix']
+    preprocess_normal_viz_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals-viz']['postfix']
 
     output_file = os.path.join(preprocess_normals_dir, preprocess_normals_filename)
     output_rgb_file = os.path.join(preprocess_normal_viz_dir, preprocess_normal_viz_filename)
 
     if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_TRAIN['preprocessed-camera-normals']['folder-name'],
+        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['folder-name'],
                                                                        preprocess_normals_filename)))
         return False
 
     # print('    Converting {}'.format(normals_path))
-    normals = np.load(normals_path)
+    normals = exr_loader(normals_path, ndim=3)
 
     # Resize the normals
     normals = normals.transpose(1, 2, 0)
-    normals_resized = resize(normals, (normsize, normsize), anti_aliasing=True, clip=True, mode='reflect')
+    normals_resized = resize(normals, imsize, anti_aliasing=True, clip=True, mode='reflect')
     normals_resized = normals_resized.transpose(2, 0, 1)
 
     # Normalize the normals
     normals = torch.from_numpy(normals_resized)
-    normal_vectors_norm = nn.functional.normalize(normals, p=2, dim=0)
-    normals = normal_vectors_norm.numpy()
+    normals = nn.functional.normalize(normals, p=2, dim=0)
+    normals = normals.numpy()
 
-    # Save array
-    np.save(output_file, normals)
+    # # Save array as numpy file
+    # np.save(output_file, normals)
+    # print('    saved', output_file)
+
+    # Save array as EXR file
+    exr_saver(output_file, normals, ndim=3)
     print('    saved', output_file)
 
     # Output converted Normals as RGB images
@@ -438,7 +475,8 @@ def preprocess_rgb(input):
     """Resize and Normalize RGB jpeg files and save as Numpy array.
 
     Args:
-        im_path (str): The path to a jpg image. This need not be an absolute path.
+        (im_path, (height, width)) (tuple): im_path (str)          = The path to a jpg image. This need not be an absolute path.
+                                            (height, width)  (int) = The size to which image is to be resized.
 
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
@@ -446,34 +484,39 @@ def preprocess_rgb(input):
     """
     im_path, imsize = input
 
+    if len(imsize) != 2:
+        raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
+
     prefix = os.path.basename(im_path)[0:0 - len(SUBFOLDER_MAP['rgb-files']['postfix'])]
 
     preprocess_rgb_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                             SUBFOLDER_MAP_TRAIN['preprocessed-rgb-imgs']['folder-name'])
-    preprocess_rgb_viz_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                              SUBFOLDER_MAP_TRAIN['preprocessed-rgb-imgs-viz']['folder-name'])
-
-
-    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_TRAIN['preprocessed-rgb-imgs']['postfix']
-    preprocess_rgb_viz_filename = prefix + SUBFOLDER_MAP_TRAIN['preprocessed-rgb-imgs-viz']['postfix']
-
+                                             SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['folder-name'])
+    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['postfix']
+    
     output_file = os.path.join(preprocess_rgb_dir, preprocess_rgb_filename)
-    output_rgb_file = os.path.join(preprocess_rgb_viz_dir, preprocess_rgb_viz_filename)
+    
 
     if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_TRAIN['preprocessed-rgb-imgs']['folder-name'],
+        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['folder-name'],
                                                                        preprocess_rgb_filename)))
         return False
 
     # Open Image, transform and save
     im = Image.open(im_path).convert("RGB")
-    im = transformImage(im, imsize)
-    im = im.numpy()
-    np.save(output_file, im)
-    print('    saved', output_file)
 
+    tf = transforms.Compose([
+        transforms.Resize(imsize, interpolation = Image.BILINEAR),    #TODO: RESIZE INTO 16:9 ASPECT RATIO. ACCEPT 2 INPUTS FOR IMSIZE, OR TUPLE
+        #transforms.ToTensor(), #saving back as image, this not needed.
+        #transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+    im = tf(im)
+
+    im = np.array(im)
+    
+    
     # Output converted RGB numpy arrays as RGB images
-    imsave(output_rgb_file, im.transpose(1, 2, 0))
+    imsave(output_file, im)
+    print('    saved', output_file)
 
     return True
 
@@ -487,16 +530,25 @@ def main():
 
     Requires Python > 3.2
     '''
-    parser = argparse.ArgumentParser(
-        description='Rearrange non-contiguous scenes in a dataset, move to separate folders.')
-    parser.add_argument('--p', required=True,
-                        help='Path to dataset', metavar='path/to/dataset')
-    parser.add_argument('--n', default=0,
-                        help='The initial value from which the numbering of renamed files must start')
-    parser.add_argument('--imsize', default=224, help='The size to which input will be resized to')
+    parser = argparse.ArgumentParser(description='Rearrange non-contiguous scenes in a dataset, move to separate folders and process.')
+
+    parser.add_argument('--p', required=True, help='Path to dataset', metavar='path/to/dataset')
+    parser.add_argument('--root', default='../data', help='The root directory of new dataset. Files will moved to and created here.', metavar='path/to/result')
+    parser.add_argument('--num_start', default=0, type=int,help='The initial value from which the numbering of renamed files must start')
+    parser.add_argument('--height', default=288, type=int, help='The size to which input will be resized to')
+    parser.add_argument('--width' , default=512, type=int, help='The size to which input will be resized to')
+    parser.add_argument('--test_set', action='store_true', help='Whether we\'re processing a test set, which has only rgb images, and optionally depth images. If this flag is passed, only rgb/depth images are considered')
     args = parser.parse_args()
-    args.imsize = int(args.imsize)
-    args.n = int(args.n)
+    
+    global SUBFOLDER_MAP
+    global SUBFOLDER_MAP_TEST
+    global SUBFOLDER_MAP_RESIZED
+    global SUBFOLDER_MAP_RESIZED_TEST
+    imsize = (args.height, args.width)
+    NEW_DATASET_PATHS['root'] = args.root
+    if (args.test_set):
+        SUBFOLDER_MAP = SUBFOLDER_MAP_TEST
+        SUBFOLDER_MAP_RESIZED = SUBFOLDER_MAP_RESIZED_TEST
 
 
     # Check if source dir is valid
@@ -519,6 +571,10 @@ def main():
                 print(colored("Skipping the renaming of files from new dataset {} and proceeding to process file in {}".format(
                     args.p, src_dir_path), 'red'))
 
+    
+
+    
+    ### STAGE 1: Move the data into subfolder ###
     # Create new dir to store processed dataset
     if not os.path.isdir(src_dir_path):
         os.makedirs(src_dir_path)
@@ -526,8 +582,8 @@ def main():
     else:
         print("\nDataset dir exists:", src_dir_path)
 
-    print("Moving files to", src_dir_path, "and renaming them to start from prefix {:09}.".format(args.n))
-    count_renamed = move_and_rename_dataset(args.p, src_dir_path, int(args.n))
+    print("Moving files to", src_dir_path, "and renaming them to start from prefix {:09}.".format(args.num_start))
+    count_renamed = move_and_rename_dataset(args.p, src_dir_path, int(args.num_start))
     if(count_renamed > 0):
         color = 'green'
     else:
@@ -537,34 +593,43 @@ def main():
     print("\nSeparating dataset into folders.")
     move_to_subfolders(src_dir_path)
 
-    # Create a pool of processes. By default, one is created for each CPU in your machine.
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        # Get a list of files to process
-        world_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP['world-normals']['folder-name'])
-        json_files_path = os.path.join(src_dir_path, SUBFOLDER_MAP['json-files']['folder-name'])
-        # TODO: convert this into SUBFOLDER_MAP vars
-        world_normals = sorted(glob.glob(os.path.join(world_normals_path, "*" +
-                                                      SUBFOLDER_MAP['world-normals']['postfix'])))
-        json_files = sorted(glob.glob(os.path.join(json_files_path, "*" + SUBFOLDER_MAP['json-files']['postfix'])))
 
-        # Process the list of files, but split the work across the process pool to use all CPUs!
-        print("\n\nCheck your CPU usage...Converting World co-ord Normals to Camera co-ord Normals!!")
-        num_converted, num_skipped = 0, 0
-        for converted_file in executor.map(preprocess_world_to_cam, world_normals, json_files):
-            if converted_file == True:
-                num_converted += 1
-            if converted_file == False:
-                num_skipped += 1
 
-        print(colored('\n  Converted {} world-normals'.format(num_converted), 'green'))
-        print(colored('  Skipped {} world-normals'.format(num_skipped), 'red'))
 
+    ### STAGE 2: Convert World Normals to Camera Normals - skip if test set ###
+    if not (args.test_set):
+        # Create a pool of processes. By default, one is created for each CPU in your machine.
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Get a list of files to process
+            world_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP['world-normals']['folder-name'])
+            json_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP['json-files']['folder-name'])
+            
+            world_normals_files_list = sorted(glob.glob(os.path.join(world_normals_dir, "*" +
+                                                        SUBFOLDER_MAP['world-normals']['postfix'])))
+            json_files_list = sorted(glob.glob(os.path.join(json_files_dir, "*" + SUBFOLDER_MAP['json-files']['postfix'])))
+
+            # Process the list of files, but split the work across the process pool to use all CPUs!
+            print("\n\nConverting World co-ord Normals to Camera co-ord Normals...Check your CPU usage!!")
+            num_converted, num_skipped = 0, 0
+            for converted_file in executor.map(preprocess_world_to_cam, world_normals_files_list, json_files_list):
+                if converted_file == True:
+                    num_converted += 1
+                if converted_file == False:
+                    num_skipped += 1
+
+            print(colored('\n  Converted {} world-normals'.format(num_converted), 'green'))
+            print(colored('  Skipped {} world-normals'.format(num_skipped), 'red'))
+
+    
+    
+
+    ### STAGE 3: Preprocess the data required for training ###
     # Create dir to store training data
     print("\n\nPre-Processing data - this will be directly used as training data by model")
     train_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'])
 
-    for filetype in SUBFOLDER_MAP_TRAIN:
-        subfolder_path = os.path.join(train_dir_path, SUBFOLDER_MAP_TRAIN[filetype]['folder-name'])
+    for filetype in SUBFOLDER_MAP_RESIZED:
+        subfolder_path = os.path.join(train_dir_path, SUBFOLDER_MAP_RESIZED[filetype]['folder-name'])
 
         if not os.path.isdir(subfolder_path):
             os.makedirs(subfolder_path)
@@ -576,17 +641,13 @@ def main():
 
     # Create a pool of processes. By default, one is created for each CPU in your machine.
     with concurrent.futures.ProcessPoolExecutor(1) as executor:
-        # Get a list of files to process
-        rgb_imgs_path = os.path.join(src_dir_path, SUBFOLDER_MAP['rgb-files']['folder-name'])
-        camera_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP['camera-normals']['folder-name'])
-
-        image_files_rgb = glob.glob(os.path.join(rgb_imgs_path, "*" + SUBFOLDER_MAP['rgb-files']['postfix']))
-        image_files_normals = glob.glob(os.path.join(camera_normals_path, "*" +
-                                                     SUBFOLDER_MAP['camera-normals']['postfix']))
-
         # Process the list of files, but split the work across the process pool to use all CPUs!
+
         # rgb files
-        input = [(image, args.imsize) for image in sorted(image_files_rgb)]
+        rgb_imgs_path = os.path.join(src_dir_path, SUBFOLDER_MAP['rgb-files']['folder-name'])
+        image_files_rgb = glob.glob(os.path.join(rgb_imgs_path, "*" + SUBFOLDER_MAP['rgb-files']['postfix']))
+
+        input = [(image, imsize) for image in sorted(image_files_rgb)]
         num_converted, num_skipped = 0, 0
         for converted_file in executor.map(preprocess_rgb, input):
             if converted_file == True:
@@ -595,17 +656,22 @@ def main():
                 num_skipped += 1
         print(colored('\n  Pre-processed {} rgb files'.format(num_converted), 'green'))
         print(colored('  Skipped {} rgb files\n'.format(num_skipped), 'red'))
-
-        # surface normal files
-        input = [(image, args.imsize) for image in sorted(image_files_normals)]
-        num_converted, num_skipped = 0, 0
-        for converted_file in executor.map(preprocess_normals, input):
-            if converted_file == True:
-                num_converted += 1
-            if converted_file == False:
-                num_skipped += 1
-        print(colored('\n  Pre-processed {} camera-normal files'.format(num_converted), 'green'))
-        print(colored('  Skipped {} camera-normal files\n'.format(num_skipped), 'red'))
+        
+        # surface normal files - skip if test set 
+        if not (args.test_set):
+            camera_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP['camera-normals']['folder-name'])
+            image_files_normals = glob.glob(os.path.join(camera_normals_path, "*" +
+                                                        SUBFOLDER_MAP['camera-normals']['postfix']))
+            
+            input = [(image, imsize) for image in sorted(image_files_normals)]
+            num_converted, num_skipped = 0, 0
+            for converted_file in executor.map(preprocess_normals, input):
+                if converted_file == True:
+                    num_converted += 1
+                if converted_file == False:
+                    num_skipped += 1
+            print(colored('\n  Pre-processed {} camera-normal files'.format(num_converted), 'green'))
+            print(colored('  Skipped {} camera-normal files\n'.format(num_skipped), 'red'))
 
 
 if __name__ == "__main__":
