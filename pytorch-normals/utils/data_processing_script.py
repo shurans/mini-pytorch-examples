@@ -11,8 +11,8 @@ import Imath
 import json
 import shutil
 import glob
-import csv
 import concurrent.futures
+import time
 
 from PIL import Image
 from pathlib import Path
@@ -25,6 +25,7 @@ from torchvision import transforms, utils
 from torch import nn
 from skimage.transform import resize
 
+from .utils import exr_loader, exr_saver
 
 SUBFOLDER_MAP = {
     'rgb-files'         :{'postfix'      : '-rgb.jpg',
@@ -61,7 +62,7 @@ SUBFOLDER_MAP_TEST = {
 }
 
 NEW_DATASET_PATHS = {
-    'root'          : '../data',
+    'root'          : '../data/dataset',
     'source-files'  : 'source-files',
     'training-data' : 'resized-files',
 }
@@ -232,117 +233,22 @@ def world_to_camera_normals(inverted_camera_quaternation, exr_x, exr_y, exr_z):
 
 
 def normal_to_rgb(normals_to_convert):
+    '''Converts a surface normals array into an RGB image.
+    Surface normals are represented in a range of (-1,1),
+    This is converted to a range of (0,255) to be written
+    into an image.
+    The surface normals are normally in camera co-ords, 
+    with positive z axis coming out of the page. And the axes are
+    mapped as (x,y,z) -> (R,G,B).
+    '''
     camera_normal_rgb = normals_to_convert + 1
     camera_normal_rgb *= 127.5
     camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
     return camera_normal_rgb
 
 
-# Return X, Y, Z normals as numpy arrays
-def read_exr_normal_file(exr_path):
-    exr_file = OpenEXR.InputFile(exr_path)
-    # print("exr header:")
-    # print(exr_file.header())
-    cm_dw = exr_file.header()['dataWindow']
-    exr_x = np.fromstring(
-        exr_file.channel('R', Imath.PixelType(Imath.PixelType.HALF)),
-        dtype=np.float16
-    )
-    exr_x.shape = (cm_dw.max.y - cm_dw.min.y + 1, cm_dw.max.x - cm_dw.min.x + 1)  # rows, cols
-    exr_y = np.fromstring(
-        exr_file.channel('G', Imath.PixelType(Imath.PixelType.HALF)),
-        dtype=np.float16
-    )
-    exr_y.shape = (cm_dw.max.y - cm_dw.min.y + 1, cm_dw.max.x - cm_dw.min.x + 1)  # rows, cols
-
-    exr_z = np.fromstring(
-        exr_file.channel('B', Imath.PixelType(Imath.PixelType.HALF)),
-        dtype=np.float16
-    )
-    exr_z.shape = (cm_dw.max.y - cm_dw.min.y + 1, cm_dw.max.x - cm_dw.min.x + 1)  # rows, cols
-    return exr_x, exr_y, exr_z
 
 
-def exr_loader(EXR_PATH, ndim=3):
-        """
-        loads an .exr file as a numpy array
-        :param path: path to the file
-        :param ndim: number of channels that the image has,
-                        if 1 the 'R' channel is taken
-                        if 3 the 'R', 'G' and 'B' channels are taken
-        :return: np.array containing the .exr image
-        """
-
-        exr_file = OpenEXR.InputFile(EXR_PATH)
-        cm_dw = exr_file.header()['dataWindow']
-        size = (cm_dw.max.x - cm_dw.min.x + 1, cm_dw.max.y - cm_dw.min.y + 1)
-
-        pt = Imath.PixelType(Imath.PixelType.FLOAT)
-
-        if ndim == 3:
-            # read channels indivudally
-            allchannels = []
-            for c in ['R', 'G', 'B']:
-                # transform data to numpy
-                channel = np.frombuffer(exr_file.channel(c, pt), dtype=np.float32)
-                channel.shape = (size[1], size[0])
-                allchannels.append(channel)
-
-            # create array and transpose dimensions to match tensor style
-            exr_arr = np.array(allchannels).transpose((0, 1, 2))
-            return exr_arr
-
-        if ndim == 1:
-            # transform data to numpy
-            channel = np.frombuffer(exr_file.channel('R', pt), dtype=np.float32)
-            channel.shape = (size[1], size[0])  # Numpy arrays are (row, col)
-            exr_arr = np.array(channel)
-            return exr_arr
-
-def exr_saver(EXR_PATH, ndarr, ndim=3):
-    '''Saves a numpy array as an EXR file with HALF precision (float16)
-    Args:
-        EXR_PATH (str): The path to which file will be saved
-        ndarr (ndarray): A numpy array containing img data
-        ndim (int): The num of dimensions, either 3 or 1. If ndim = 3, ndarr should be of shape (3 x height x width),
-                    else if ndim = 1, ndarr should be of shape (height, width)
-    Return:
-        None
-    '''
-    if ndim == 3:
-        # Check params
-        if ndarr.shape[0] != 3 or len(ndarr.shape) != 3:
-            raise ValueError('The shape of the tensor should be 3 x height x width for ndim = 3. Given shape is {}'.format(ndarr.shape))
-        
-        # Convert each channel to strings
-        Rs = ndarr[0,:,:].astype(np.float16).tostring()
-        Gs = ndarr[1,:,:].astype(np.float16).tostring()
-        Bs = ndarr[2,:,:].astype(np.float16).tostring()
-
-        # Write the three color channels to the output file
-        HEADER = OpenEXR.Header(ndarr.shape[2], ndarr.shape[1])
-        half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
-        HEADER['channels'] = dict([(c, half_chan) for c in "RGB"])
-        
-        out = OpenEXR.OutputFile(EXR_PATH, HEADER)
-        out.writePixels({'R' : Rs, 'G' : Gs, 'B' : Bs })
-        out.close()
-    elif ndim == 1:
-        # Check params
-        if len(ndarr.shape) != 2:
-            raise ValueError('The shape of the tensor should be height x width for ndim = 1. Given shape is {}'.format(ndarr.shape))
-
-        # Convert each channel to strings
-        Rs = ndarr[:,:].astype(np.float16).tostring()
-        
-        # Write the color channel to the output file
-        HEADER = OpenEXR.Header(ndarr.shape[1], ndarr.shape[0])
-        half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
-        HEADER['channels'] = dict([(c, half_chan) for c in "R"])
-        
-        out = OpenEXR.OutputFile(EXR_PATH, HEADER)
-        out.writePixels({'R' : Rs})
-        out.close()
 
 def preprocess_world_to_cam(world_normals, json_files):
     '''Will convert normals from World co-ords to Camera co-ords
@@ -379,7 +285,8 @@ def preprocess_world_to_cam(world_normals, json_files):
     print("  Converting {} to {}".format(world_normal_file, camera_normal_file))
 
     # Read EXR File
-    exr_x, exr_y, exr_z = read_exr_normal_file(world_normals)
+    exr_np = exr_loader(world_normals)
+    exr_x, exr_y, exr_z = exr_np[0], exr_np[1], exr_np[2]
     assert(exr_x.shape == exr_y.shape)
     assert(exr_y.shape == exr_z.shape)
 
@@ -561,15 +468,11 @@ def main():
             print(colored('ERROR: Empty dir {}. Please pass correct path to dataset'.format(args.p), 'red'))
             exit()
     else:
-        if not os.path.isdir(args.p):
-            print(colored("\nWARNING: Dir {} does not exist. However, found {}.".format(args.p, src_dir_path), 'red'))
-            print(colored("Skipping the renaming of files from new dataset {} and proceeding to process file in {}".format(
-                args.p, src_dir_path), 'red'))
-        else:
-            if not os.listdir(args.p):
-                print(colored("\nWARNING: Dir {} is empty. However, found {}.".format(args.p, src_dir_path), 'red'))
-                print(colored("Skipping the renaming of files from new dataset {} and proceeding to process file in {}".format(
-                    args.p, src_dir_path), 'red'))
+        if ((not os.path.isdir(args.p)) or (not os.listdir(args.p))):
+            print(colored("\nWARNING: Source directory '{}' does not exist or is empty.\n  However, found dest dir '{}'.\n".format(args.p, src_dir_path), 'red'))
+            print(colored("  Assuming files have already been renamed and moved from Source directory.\n  Proceeding to process files in Dest dir." , 'red'))
+            time.sleep(2)
+            
 
     
 

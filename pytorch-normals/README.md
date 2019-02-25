@@ -76,62 +76,93 @@ milk-bottle
  used within the code for each of these datasets, which are then concatenated into a large train-val dataset, which is
  subsequently split into train and val datasets.
 
+## Setup Dependencies
 
-## Setup
-#### Dependencies
-Python3 is used for the code. Install the dependencies below. If using Conda to manage virtual environments, 
+Ubuntu 16.04 and Python3 is used for the code. Install the dependencies below. If using Conda to manage virtual environments,
 conda install commands are provided. Otherwise, install with pip or from source.
 
-- OpenEXR  
+### OpenEXR
+
 OpenEXR is required to read in the files in .exr format. Install [OpenEXR](https://github.com/openexr/openexr) libs and
 its [python bindings](https://github.com/jamesbowman/openexrpython). 
-```
+
+```bash
+# Install OpenEXR
 $ sudo apt install -y libopenexr-dev zlib1g-dev
 $ sudo apt install openexr
 $ pip install git+https://github.com/jamesbowman/openexrpython.git
 ```
 
-Note: Do NOT install openexr libs from conda, it installs the openexr libs and not the OpenEXR python bindings, causing import issues.
+Note: If using Conda, Do NOT install openexr libs from conda, it installs the openexr libs and not the OpenEXR python bindings, causing import issues.
 These are the commands not to be run:
-```
+
+```bash
 # DO NOT INSTALL THIS
 # conda install -c conda-forge openexr
 # conda install -c conda-forge ilmbase
 ``` 
 
-- TensorboardX
+### TensorboardX
+
 [TensorboardX](https://github.com/lanpa/tensorboardX) is a version of tensorboard built for pytorch. It requires tensorboard to be installed
-```
+
+```bash
+# Install tensorboardX
 $ pip install tensorboardX
 $ pip install tensorflow  #Alternate: conda install -c conda-forge tensorflow
 ```
 
-- Others
+### imgaug
+
+This is a data augmentation library which we use with pytorch dataloaders to resize, crop, flip, rotate, etc.
+
+```bash
+# Requirements
+$ pip install six numpy scipy Pillow matplotlib scikit-image imageio Shapely
+#$ conda install six numpy scipy Pillow matplotlib scikit-image imageio Shapely
+
+$ pip install opencv-python
+
+# imgaug from github
+$ pip install git+https://github.com/aleju/imgaug
 ```
+
+### LibRealSense  
+
+[LibRealSense](https://github.com/IntelRealSense/librealsense) is required to stream and capture images from Intel Realsense D415/D435 stereo cameras.  
+Please check the [installation guide](https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md) to install from binaries, or compile from source.
+
+```bash
+# Register the server's public key:
+$ sudo apt-key adv --keyserver keys.gnupg.net --recv-key C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C8B3A55A6F3EFCDE
+
+# Ubuntu 16 LTS - Add the server to the list of repositories
+$ sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo xenial main" -u
+
+# Install the libraries
+$ sudo apt-get install librealsense2-dkms
+$ sudo apt-get install librealsense2-dkms
+
+# Install the developer and debug packages
+$ sudo apt-get install librealsense2-dev
+$ sudo apt-get install librealsense2-dbg
+```
+
+### Munch
+[Munch](https://github.com/Infinidat/munch) is a library to convery yaml files into python objects. The dict keys can be accessed as attributes. Similar to [AttrDict](https://pypi.org/project/attrdict/).  
+This lib is used to read in yaml config files and access key-value pairs as object attributes.
+
+```bash
+# Install Munch
+$ pip install munch # conda install munch
+
+# Install AttrDict
+$ pip install attrdict # conda install attrdict -c conda-forge
+```
+
+### Others
+
+```bash
+# Misc Packages
 $ pip install termcolor
-$ pip install imageio  #Alternate: conda install -c conda-forge imageio
-```
-
-#### Setup Jupyter Notebook
-Set a password for notebook
-```
-$ jupyter notebook password
-Enter password:
-Verify password:
-[NotebookPasswordApp] Wrote hashed password to /home/shrek/.jupyter/jupyter_notebook_config.json
-```
-Generate a config
-```
-$ jupyter notebook --generate-config
-```
-Set config params to allow remote access:
-```
-# Edit the file ~/.jupyter/jupyter_notebook_config.py
-$ nano ~/.jupyter/jupyter_notebook_config.py
-
-# Add the following lines:
-c = get_config()
-c.NotebookApp.allow_origin = '*'
-c.NotebookApp.allow_remote_access = True
-c.NotebookApp.ip = '*'
 ```
