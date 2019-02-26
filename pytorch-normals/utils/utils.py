@@ -4,8 +4,6 @@
 import numpy as np
 import OpenEXR
 import Imath
-import yaml
-from attrdict import AttrDict
 
 def exr_loader(EXR_PATH, ndim=3):
     """
@@ -90,9 +88,3 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
         out = OpenEXR.OutputFile(EXR_PATH, HEADER)
         out.writePixels({'R': Rs})
         out.close()
-
-
-def read_yaml_as_object(filepath):
-    with open(filepath) as fd:
-        config = yaml.safe_load(fd)
-    return AttrDict(config)

@@ -1,0 +1,37 @@
+# Datasets
+datasets:
+  -
+    images: 'data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs'
+    labels: 'data/datasets/milk-bottles/resized-files/preprocessed-camera-normals'
+
+# Training Config
+train:
+  batchSize: 16
+  numEpochs: 500
+  imgHeight: 288
+  imgWidth: 512
+  numClasses: 3
+  logsDir: 'logs' # Directory where logs of each exp will be saved.
+  transferLearning: True # Whether to continue training from a prev checkpoint
+  continueTraining: True  # If true, and transferLearning = True, the numbering of epochs will continue from last checkpoint. If 
+  pathWeightsPrevRun: 'logs/exp-008/checkpoints/checkpoint-epoch_215.pth' # Path to .pth checkpoint file to load to continue training from
+  lossFunc: 'cosine' # Possible values: 'cosine', 'radians'
+  percentageDataForTraining: 0.01 #0.85
+  numWorkers: 32
+  saveImageInterval: 1 # Save output images during training to tensorboard every saveImageInterval epochs
+  testInterval: 1 # Run on test set every nTestInterval epochs. Keep at 0 to skip tests.
+  saveModelInterval: 5 # Save the model checkpoints every N epochs
+
+  validationBatchSize: 32
+
+# Optimizer Params
+adamOptim:
+  learningRate: 0.0001
+  weightDecay: 0 # Other values: 0.0001
+lrSchedulerStep:
+  step_size: 7
+  gamma: 0.1
+lrSchedulerPlateau:
+  factor: 0.8
+  patience: 25
+  verbose: True
