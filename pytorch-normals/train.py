@@ -20,8 +20,8 @@ import dataloader
 from loss_functions import loss_fn_cosine, loss_fn_radians
 
 
-###################### Options #############################
-CONFIG_FILE_PATH = 'config/config_train.yaml'
+###################### Config #############################
+CONFIG_FILE_PATH = 'config/config.yaml'
 with open(CONFIG_FILE_PATH) as fd:
     config_yaml = yaml.safe_load(fd)
 config = AttrDict(config_yaml)
@@ -46,7 +46,7 @@ writer = SummaryWriter(MODEL_LOG_DIR, comment='create-graph')
 
 # Write config to tensorboard
 string_out = io.StringIO()
-yaml.dump(config_yaml,string_out, default_flow_style=False)
+yaml.dump(config_yaml, string_out, default_flow_style=False)
 config_str = string_out.getvalue()
 config_str = config_str.split('\n')
 string = ''
@@ -56,16 +56,20 @@ for i in config_str:
 writer.add_text('Config', string, global_step=None)
 
 ###################### DataLoader #############################
-# Make new dataloader for each object's dataset
-db_trainval1 = dataloader.SurfaceNormalsDataset(
-    input_dir=config.datasets[0].images,
-    label_dir=config.datasets[0].labels,
-    transform=None,
-    input_only=None
-)
+
+# Create a dataset object for each dataset in our list
+db_trainval = []
+for dataset in config.train.datasets:
+    dataset = dataloader.SurfaceNormalsDataset(
+        input_dir=dataset.images,
+        label_dir=dataset.labels,
+        transform=None,
+        input_only=None
+    )
+    db_trainval.append(dataset)
 
 # Join all the datasets into 1 large dataset
-db_trainval = torch.utils.data.ConcatDataset([db_trainval1])
+db_trainval = torch.utils.data.ConcatDataset(db_trainval)
 
 # Split into training and validation datasets
 # What percentage of dataset to be used for training
@@ -83,21 +87,27 @@ validationLoader = DataLoader(
 
 
 ###################### ModelBuilder #############################
-model = unet.Unet(num_classes=config.train.numClasses)
+if config.train.model == 'unet':
+    model = unet.Unet(num_classes=config.train.numClasses)
+else:
+    raise ValueError('Invalid model "{}" in config file. Must be one of ["unet"]'.format(config.train.model))
 
 if config.train.transferLearning:
     if not os.path.isfile(config.train.pathWeightsPrevRun):
-        raise ValueError('The path to the given weights file for transfer learning is incorrect. The file {} does not exist'.format(config.train.pathWeightsPrevRun))
+        raise ValueError('Invalid path to the given weights file for transfer learning.\
+                The file {} does not exist'.format(config.train.pathWeightsPrevRun))
 
     CHECKPOINT = torch.load(config.train.pathWeightsPrevRun, map_location='cpu')
 
     if 'model_state_dict' in CHECKPOINT:
+        # Newer weights file with various dicts
         print(colored('Continuing training from checkpoint...Loaded data from checkpoint.', 'green'))
         print('    Last Epoch Loss:', CHECKPOINT['epoch_loss'])
         print('    Config:\n', CHECKPOINT['config'], '\n\n')
 
         model.load_state_dict(CHECKPOINT['model_state_dict'])
     else:
+        # Old checkpoint containing only model's state_dict()
         model.load_state_dict(CHECKPOINT)
 
 
@@ -111,13 +121,14 @@ model = model.to(device)
 model.train()
 
 ###################### Setup Optimization #############################
-optimizer = torch.optim.Adam(model.parameters(), lr=config.adamOptim.learningRate,
-                            weight_decay=config.adamOptim.weightDecay)
+optimizer = torch.optim.Adam(model.parameters(), lr=config.train.adamOptim.learningRate,
+                             weight_decay=config.train.adamOptim.weightDecay)
 step_lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-        step_size=config.lrSchedulerStep.step_size, gamma=config.lrSchedulerStep.gamma)
+                                                    step_size=config.train.lrSchedulerStep.step_size,
+                                                    gamma=config.train.lrSchedulerStep.gamma)
 plateau_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, factor=config.lrSchedulerPlateau.factor,
-        patience=config.lrSchedulerPlateau.patience, verbose=True)
+    optimizer, factor=config.train.lrSchedulerPlateau.factor,
+    patience=config.train.lrSchedulerPlateau.patience, verbose=True)
 
 # Continue Training from prev checkpoint if required
 if config.train.transferLearning:
@@ -133,20 +144,21 @@ if config.train.lossFunc == 'cosine':
 elif config.train.lossFunc == 'radians':
     criterion = loss_fn_radians
 else:
-    raise ValueError('lossFunc can only be "cosine" or "radians". Value passed is: {}'.format(config.train.lossFunc))
+    raise ValueError('Invalid lossFunc from config file. Can only be "cosine" or "radians".\
+                     Value passed is: {}'.format(config.train.lossFunc))
 
 
 ###################### Train Model #############################
 # Calculate total iter_num
 if config.train.transferLearning and config.train.continueTraining and 'model_state_dict' in CHECKPOINT:
     # TODO: remove this second check soon. Kept for ensuring backcompatibility
-    total_iter_num  = CHECKPOINT['total_iter_num'] +1
-    START_EPOCH     = CHECKPOINT['epoch'] +1
-    END_EPOCH       = CHECKPOINT['epoch'] + config.train.numEpochs
+    total_iter_num = CHECKPOINT['total_iter_num'] + 1
+    START_EPOCH = CHECKPOINT['epoch'] + 1
+    END_EPOCH = CHECKPOINT['epoch'] + config.train.numEpochs
 else:
-    total_iter_num  = 0
-    START_EPOCH     = 0
-    END_EPOCH       = config.train.numEpochs
+    total_iter_num = 0
+    START_EPOCH = 0
+    END_EPOCH = config.train.numEpochs
 
 for epoch in range(START_EPOCH, END_EPOCH):
     print('Epoch {}/{}'.format(epoch, END_EPOCH - 1))
@@ -216,7 +228,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
         filename = 'checkpoint-epoch-{:04d}.pth'.format(epoch)
 
         if torch.cuda.device_count() > 1:
-            model_params = model.module.state_dict() # Saving nn.DataParallel model
+            model_params = model.module.state_dict()  # Saving nn.DataParallel model
         else:
             model_params = model.state_dict()
 
@@ -229,19 +241,18 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
             'epoch_loss': epoch_loss,
             'config': config_yaml
-            }, os.path.join(CHECKPOINT_DIR, filename))
+        }, os.path.join(CHECKPOINT_DIR, filename))
 
-
-    ### Run Validation and Test Set ###
+    ###################### Run Validation and Test Set  #############################
     nTestInterval = config.train.testInterval
     if nTestInterval > 0 and epoch % nTestInterval == (nTestInterval - 1):
         model.eval()
-        images_list = []
         dataloaders_dict = {'Validation': validationLoader}
         for key in dataloaders_dict:
-            print('\n'+ '=' * 10)
-            print(key+':')
+            print('\n' + '=' * 10)
+            print(key + ':')
 
+            # TODO: rename the dataloader variable, conflics with module name. optionally, change module name.
             dataloader = dataloaders_dict[key]
             running_loss = 0.0
 
@@ -258,10 +269,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
                 loss = criterion(normal_vectors_norm, labels, reduction='elementwise_mean')
 
-
-                # run validation dataset
                 running_loss += loss.item()
-
 
             # Save output image to tensorboard
             img_tensor = inputs[:3].detach().cpu()
@@ -279,8 +287,8 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
             epoch_loss = running_loss / (len(dataloader))
 
-            writer.add_scalar(key+' Epoch Loss', epoch_loss, epoch)
-            print(key+' Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
+            writer.add_scalar(key + ' Epoch Loss', epoch_loss, epoch)
+            print(key + ' Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
 
 
 writer.close()

@@ -122,6 +122,68 @@ class SurfaceNormalsDataset(Dataset):
             return default
 
 
+class SurfaceNormalsRealImagesDataset(Dataset):
+    """
+    Dataset class for inference on real images of model on estimation of surface normals.
+    Uses pytorch.transforms for resizing images to the required size.
+    """
+
+    def __init__(self,
+                 input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
+                 imgHeight=288,
+                 imgWidth=512,
+                 ):
+        """
+        Args:
+            input_dir (str): Path to folder containing the input images.
+            imgHeight (int): Images will be resized to this height.
+            imgWidth  (int): Images will be resized to this width.
+        """
+        super().__init__()
+
+        self.images_dir = input_dir
+        self.height = imgHeight
+        self.width = imgWidth
+
+        # Create list of filenames
+        self._datalist_input = None  # Variable containing list of all input images filenames in dataset
+        self._extension_input = '.png' # The file extension of input images
+        self._create_lists_filenames(self.images_dir)
+
+    def __len__(self):
+        return len(self._datalist_input)
+
+    def __getitem__(self, index):
+
+        image_path = self._datalist_input[index]
+
+        # Open input imgs
+        _img = Image.open(image_path).convert('RGB')
+
+        tf = transforms.Compose([
+                                transforms.Resize((self.height, self.width), interpolation=Image.BILINEAR),
+                                transforms.ToTensor(),
+                                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                                ])
+        _img = tf(_img)
+
+        return _img
+
+    def _create_lists_filenames(self, images_dir):
+        '''Create a list of filenames of images in dataset dir.
+        '''
+        assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
+
+        imageSearchStr = os.path.join(images_dir, '*'+self._extension_input)
+        imagepaths = sorted(glob.glob(imageSearchStr))
+
+        # Sanity Checks
+        numImages = len(imagepaths)
+        if numImages == 0:
+            raise ValueError('No images found in given directory. Searched for {}'.format(imageSearchStr))
+
+        self._datalist_input = imagepaths
+
 
 
 

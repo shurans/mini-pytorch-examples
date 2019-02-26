@@ -1,0 +1,61 @@
+# Training Config
+train:
+  # Synthetic datasets with ground truth labels
+  datasets:
+  - images: 'data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs'
+    labels: 'data/datasets/milk-bottles/resized-files/preprocessed-camera-normals'
+
+  # Training/Validation Params
+  model: 'unet' # Possible models: unet
+  backbone: '' # Possible values: None
+  batchSize: 16
+  numEpochs: 500
+  imgHeight: 288
+  imgWidth: 512
+  numClasses: 3
+  numWorkers: 32 # Num of workers used in the dataloader
+  logsDir: 'logs' # Directory where logs of each exp will be saved.
+  lossFunc: 'cosine' # Possible values: 'cosine', 'radians'
+  percentageDataForTraining: 0.85 # The percentage of images in dataset to be used for training. Rest used for validation.
+
+  transferLearning: False # Whether to continue training from a prev checkpoint
+  continueTraining: True  # If true, and transferLearning = True, the numbering of epochs will continue from last checkpoint.
+  pathWeightsPrevRun: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to .pth checkpoint file to load to continue training from
+
+  saveImageInterval: 1 # Save output images during training to tensorboard every saveImageInterval epochs
+  testInterval: 1 # Run on test set every nTestInterval epochs. Keep at 0 to skip tests.
+  saveModelInterval: 1 # Save the model checkpoints every N epochs
+
+  validationBatchSize: 32
+
+  # Optimizer Params
+  adamOptim:
+    learningRate: 0.0001
+    weightDecay: 0 # Other values: 0.0001
+  lrSchedulerStep:
+    step_size: 7
+    gamma: 0.1
+  lrSchedulerPlateau:
+    factor: 0.8
+    patience: 25
+    verbose: True
+
+
+# Testing/Inference Config
+eval:
+  # Synthetic datasets with ground truth labels
+  datasets_synthetic:
+  - images: 'data/datasets/test-synthetic-10/resized-files/preprocessed-rgb-imgs'
+    labels: 'data/datasets/test-synthetic-10/resized-files/preprocessed-camera-normals'
+
+  # Datasets of real images, no labels available
+  datasets_real:
+  - images: 'data/datasets/test-real/camera-pics/resized-files/preprocessed-rgb-imgs'
+  - images: 'data/datasets/test-real/realsense-captures/resized-files/preprocessed-rgb-imgs'
+
+  # Params
+  batchSize: 1
+  numWorkers: 32
+  pathWeightsFile: 'logs/exp-008/checkpoints/checkpoint-epoch-0499.pth' # Path to the checkpoint to be loaded
+  resultsDirSynthetic: 'data/results/test-synthetic' # The dir to which results on synthetic images will be stored
+  resultsDirReal: 'data/results/test-real'  # The dir to which results on real images will be stored
