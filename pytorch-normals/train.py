@@ -2,11 +2,7 @@
 '''
 
 import os
-import sys
-# sys.path.append('./models/')
 import glob
-import pprint
-import json
 import io
 
 from tensorboardX import SummaryWriter
@@ -25,7 +21,7 @@ from loss_functions import loss_fn_cosine, loss_fn_radians
 
 
 ###################### Options #############################
-CONFIG_FILE_PATH = 'config.yaml'
+CONFIG_FILE_PATH = 'config/config_train.yaml'
 with open(CONFIG_FILE_PATH) as fd:
     config_yaml = yaml.safe_load(fd)
 config = AttrDict(config_yaml)
@@ -43,7 +39,7 @@ print('Saving logs to folder "{}"'.format(MODEL_LOG_DIR))
 
 CONFIG_SAVE_PATH = os.path.join(MODEL_LOG_DIR, 'config.yaml')
 with open(CONFIG_SAVE_PATH, "x") as fd:
-        yaml.dump(config_yaml, fd, default_flow_style=False)
+    yaml.dump(config_yaml, fd, default_flow_style=False)
 
 
 writer = SummaryWriter(MODEL_LOG_DIR, comment='create-graph')
@@ -143,10 +139,10 @@ else:
 ###################### Train Model #############################
 # Calculate total iter_num
 if config.train.transferLearning and config.train.continueTraining and 'model_state_dict' in CHECKPOINT:
-        # TODO: remove this second check soon. Kept for ensuring backcompatibility
-        total_iter_num  = CHECKPOINT['total_iter_num'] +1
-        START_EPOCH     = CHECKPOINT['epoch'] +1
-        END_EPOCH       = CHECKPOINT['epoch'] + config.train.numEpochs
+    # TODO: remove this second check soon. Kept for ensuring backcompatibility
+    total_iter_num  = CHECKPOINT['total_iter_num'] +1
+    START_EPOCH     = CHECKPOINT['epoch'] +1
+    END_EPOCH       = CHECKPOINT['epoch'] + config.train.numEpochs
 else:
     total_iter_num  = 0
     START_EPOCH     = 0
@@ -184,7 +180,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
         running_loss += loss.item()
         writer.add_scalar('Train BatchWise Loss', loss.item(), total_iter_num)
 
-        # TODO:
         # Save image to tensorboard every N epochs
         if (epoch % config.train.saveImageInterval) == 0:
             img_tensor = inputs[:3].detach().cpu()
@@ -219,7 +214,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     # Save the model checkpoint every N epochs
     if (epoch % config.train.saveModelInterval) == 0:
         filename = 'checkpoint-epoch-{:04d}.pth'.format(epoch)
-        # TODO: CORRECT method to load/save checkpoints
+
         if torch.cuda.device_count() > 1:
             model_params = model.module.state_dict() # Saving nn.DataParallel model
         else:

@@ -1,7 +1,8 @@
 __pycache__/
 .mypy_cache/
 .vscode/
-config.yaml
+config*.yaml
+!config*yaml.sample
 
 pytorch-normals/.ipynb_checkpoints/*
 pytorch-normals/data/*
