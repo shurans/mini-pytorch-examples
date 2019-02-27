@@ -27,6 +27,7 @@ with open(CONFIG_FILE_PATH) as fd:
 config = AttrDict(config_yaml)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(colored('Config being used for training:\n', config_yaml, '\n\n'), 'green')
 
 ###################### Logs  #############################
 # Create a new directory to save logs
@@ -163,8 +164,9 @@ else:
 for epoch in range(START_EPOCH, END_EPOCH):
     print('Epoch {}/{}'.format(epoch, END_EPOCH - 1))
     print('-' * 30)
-    print('=' * 10)
+
     print('Train:')
+    print('=' * 10)
 
     # Each epoch has a training and validation phase
     running_loss = 0.0
@@ -251,8 +253,8 @@ for epoch in range(START_EPOCH, END_EPOCH):
         dataloaders_dict = {'Validation': validationLoader}
 
         for key in dataloaders_dict:
-            print('\n' + '=' * 10)
             print(key + ':')
+            print('\n' + '=' * 10)
 
             # TODO: rename the dataloader variable, conflics with module name. optionally, change module name.
             dataloader = dataloaders_dict[key]
