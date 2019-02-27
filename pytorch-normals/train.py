@@ -83,7 +83,7 @@ trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
                          pin_memory=True)
 validationLoader = DataLoader(
     db_validation, batch_size=config.train.validationBatchSize, shuffle=False,
-    num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+    num_workers=config.train.numWorkers, drop_last=False, pin_memory=True)
 
 
 ###################### ModelBuilder #############################

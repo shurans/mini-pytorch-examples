@@ -21,6 +21,13 @@ class SurfaceNormalsDataset(Dataset):
     """
     Dataset class for training model on estimation of surface normals.
     Uses imgaug for image augmentations
+
+    Args:
+        input_dir (str): Path to folder containing the input images.
+        label_dir (str): Path to folder containing the labels.
+        transform (imgaug transforms): imgaug Transforms to be applied to the imgs
+        input_only (list, str): List of transforms that are to be applied only to the input img
+
     """
 
     def __init__(self,
@@ -29,13 +36,7 @@ class SurfaceNormalsDataset(Dataset):
                  transform=None,
                  input_only=None,
                  ):
-        """
-        Args:
-            input_dir (str): Path to folder containing the input images.
-            label_dir (str): Path to folder containing the labels.
-            transform (imgaug transforms): Transforms to be applied to the imgs
-            input_only (list, str): List of transforms that are to be applied only to the input img
-        """
+
         super().__init__()
 
         self.images_dir = input_dir
@@ -54,6 +55,19 @@ class SurfaceNormalsDataset(Dataset):
         return len(self._datalist_input)
 
     def __getitem__(self, index):
+        '''Returns an item from the dataset at the given index
+
+        Args:
+            index (int): index of the item required from dataset.
+
+        Raises:
+            ValueError: No transforms are supported atm. Raises error if transforms passed.
+
+        Returns:
+            tensor: Tensor of input image
+            tensor: Tensor of label
+            str: filename of input image
+        '''
 
         image_path = self._datalist_input[index]
         label_path = self._datalist_label[index]
@@ -87,9 +101,19 @@ class SurfaceNormalsDataset(Dataset):
         return _img, _label
 
     def _create_lists_filenames(self, images_dir, labels_dir):
-        '''Create 2 lists of filenames of images and labels respectively. The indexes
-        of both lists match
+        '''Creates a list of filenames of images and labels each in dataset
+        The label at index N will match the image at index N.
+
+        Args:
+            images_dir (str): Path to the dir where images are stored
+            labels_dir (str): Path to the dir where labels are stored
+
+        Raises:
+            ValueError: If the given directories are invalid
+            ValueError: No images were found in given directory
+            ValueError: Number of images and labels do not match
         '''
+
         assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
         assert os.path.isdir(labels_dir), 'This directory does not exist: %s' % (labels_dir)
 
@@ -123,22 +147,22 @@ class SurfaceNormalsDataset(Dataset):
 
 
 class SurfaceNormalsRealImagesDataset(Dataset):
-    """
-    Dataset class for inference on real images of model on estimation of surface normals.
+    '''Dataset class for inference on real images with surface normals estimation model.
     Uses pytorch.transforms for resizing images to the required size.
-    """
+
+    Args:
+        input_dir (str, optional): Defaults to 'data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs'. \
+            Path where the images are stored.
+        imgHeight (int, optional): Defaults to 288. Images will be resized to this height.
+        imgWidth (int, optional): Defaults to 512. Images will be resized to this width.
+    '''
 
     def __init__(self,
                  input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
                  imgHeight=288,
                  imgWidth=512,
                  ):
-        """
-        Args:
-            input_dir (str): Path to folder containing the input images.
-            imgHeight (int): Images will be resized to this height.
-            imgWidth  (int): Images will be resized to this width.
-        """
+
         super().__init__()
 
         self.images_dir = input_dir

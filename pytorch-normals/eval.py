@@ -11,6 +11,7 @@ import yaml
 from attrdict import AttrDict
 import imageio
 import numpy as np
+import h5py
 
 from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
@@ -51,14 +52,14 @@ else:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Check for results store dir
-if not os.path.isdir(config.eval.resultsDirSynthetic):
-    print(colored('The dir to store results "{}" does not exist. Creating dir'.format(
-        config.eval.resultsDirSynthetic), 'red'))
-    os.makedirs(config.eval.resultsDirSynthetic)
-if not os.path.isdir(config.eval.resultsDirReal):
-    print(colored('The dir to store results "{}" does not exist. Creating dir'.format(
-        config.eval.resultsDirReal), 'red'))
-    os.makedirs(config.eval.resultsDirReal)
+DIR_RESULTS_REAL = os.path.join(config.eval.resultsDirReal, config.eval.resultsHdf5SubDir)
+DIR_RESULTS_SYNTHETIC = os.path.join(config.eval.resultsDirSynthetic, config.eval.resultsHdf5SubDir)
+if not os.path.isdir(DIR_RESULTS_REAL):
+    print(colored('The dir to store results "{}" does not exist. Creating dir'.format(DIR_RESULTS_REAL), 'red'))
+    os.makedirs(DIR_RESULTS_REAL)
+if not os.path.isdir(DIR_RESULTS_SYNTHETIC):
+    print(colored('The dir to store results "{}" does not exist. Creating dir'.format(DIR_RESULTS_SYNTHETIC), 'red'))
+    os.makedirs(DIR_RESULTS_SYNTHETIC)
 
 ###################### DataLoader #############################
 # Make new dataloaders for each synthetic dataset
@@ -88,9 +89,9 @@ db_test_synthetic = torch.utils.data.ConcatDataset(db_test_list_synthetic)
 db_test_real = torch.utils.data.ConcatDataset(db_test_list_real)
 
 testLoader_synthetic = DataLoader(db_test_synthetic, batch_size=config.eval.batchSize,
-                                  shuffle=False, num_workers=config.eval.numWorkers, drop_last=True)
+                                  shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
 testLoader_real = DataLoader(db_test_real, batch_size=config.eval.batchSize,
-                             shuffle=False, num_workers=config.eval.numWorkers, drop_last=True)
+                             shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
 
 
 ###################### ModelBuilder #############################
@@ -120,8 +121,8 @@ else:
 ### Run Validation and Test Set ###
 print('\nInference - Surface Normal Estimation')
 print('-' * 50 + '\n')
-print('Running inference on Test sets at:\n    {}\n    {}\n'.format(config.eval.resultsDirReal,
-                                                                    config.eval.resultsDirSynthetic))
+print('Running inference on Test sets at:\n    {}\n    {}\n'.format(config.eval.datasets_real,
+                                                                    config.eval.datasets_synthetic))
 print('Results will be saved to:\n    {}\n    {}\n'.format(config.eval.resultsDirReal,
                                                            config.eval.resultsDirSynthetic))
 
@@ -155,31 +156,43 @@ for key in dataloaders_dict:
         running_loss += loss.item()
 
         if config_checkpoint.train.lossFunc == 'cosine':
-            print('Image {:09d} Loss: {:.4f} (cosine loss)'.format(ii, loss.item()))
+            print('Batch {:09d} Loss: {:.4f} (cosine loss)'.format(ii, loss.item()))
         else:
-            print('Image {:09d} Loss: {:.4f} radians'.format(ii, loss.item()))
+            print('Batch {:09d} Loss: {:.4f} radians'.format(ii, loss.item()))
 
-        # Save output image to results
-        img_tensor = inputs[:3].detach().cpu()
-        output_tensor = normal_vectors_norm[:3].detach().cpu()
-        label_tensor = labels[:3].detach().cpu()
+        # Save output images, one at a time, to results
+        img_tensor = inputs.detach().cpu()
+        output_tensor = normal_vectors_norm.detach().cpu()
+        label_tensor = labels.detach().cpu()
 
-        images = []
-        for img, output, label in zip(img_tensor, output_tensor, label_tensor):
-            images.append(img)
-            images.append(output)
-            images.append(label)
+        # Extract each tensor within batch
+        for iii, sample_batched in enumerate(zip(img_tensor, output_tensor, label_tensor)):
+            img, output, label = sample_batched
 
-        grid_image = make_grid(images, 3, normalize=True, scale_each=True)
-        numpy_grid = grid_image * 255  # Scale from range [0.0, 1.0] to [0, 255]
-        numpy_grid = numpy_grid.numpy().transpose(1, 2, 0).astype(np.uint8)
+            grid_image = make_grid([img, output, label], 3, normalize=True, scale_each=True)
+            numpy_grid = grid_image * 255  # Scale from range [0.0, 1.0] to [0, 255]
+            numpy_grid = numpy_grid.numpy().transpose(1, 2, 0).astype(np.uint8)
 
-        if key == 'real':
-            result_path = os.path.join(config.eval.resultsDirReal, 'result-%09d.jpg' % (ii))
-        else:
-            result_path = os.path.join(config.eval.resultsDirSynthetic, 'result-%09d.jpg' % (ii))
+            if key == 'real':
+                result_path = os.path.join(config.eval.resultsDirReal, '{:09d}-normals.jpg'
+                                           .format(ii * config.eval.batchSize + iii))
+                result_hdf5_path = os.path.join(config.eval.resultsDirReal,
+                                                config.eval.resultsHdf5SubDir, '{:09d}-normals.h5'
+                                                .format(ii * config.eval.batchSize + iii))
+            else:
+                result_path = os.path.join(config.eval.resultsDirSynthetic, '{:09d}-normals.jpg'
+                                           .format(ii * config.eval.batchSize + iii))
+                result_hdf5_path = os.path.join(config.eval.resultsDirSynthetic,
+                                                config.eval.resultsHdf5SubDir, '{:09d}-normals.h5'
+                                                .format(ii * config.eval.batchSize + iii))
 
-        imageio.imwrite(result_path, numpy_grid)
+            # Save grid image with input, prediction and label
+            imageio.imwrite(result_path, numpy_grid)
+
+            # Write Predicted Surface Normal as hdf5 file for depth2depth
+            # NOTE: The hdf5 expected shape is (3, height, width), float32
+            with h5py.File(result_hdf5_path, "w") as f:
+                dset2 = f.create_dataset('/result', data=output.numpy())
 
     epoch_loss = running_loss / (len(testLoader))
     print('Test Mean Loss: {:.4f}\n\n'.format(epoch_loss))
