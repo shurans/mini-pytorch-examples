@@ -206,7 +206,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 images.append(label)
 
             grid_image = make_grid(images, 3, normalize=True, scale_each=True)
-            writer.add_image('Train', grid_image, epoch)
+            writer.add_image('Train', grid_image, total_iter_num)
 
         # Print loss every N Batches
         if (iter_num % 2) == 0:
@@ -216,13 +216,13 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 print('Epoch{} Batch{} BatchLoss: {:.4f} radians'.format(epoch, iter_num, loss.item()))
 
     epoch_loss = running_loss / (len(trainLoader))
-    writer.add_scalar('Train Epoch Loss', epoch_loss, epoch)
+    writer.add_scalar('Train Epoch Loss', epoch_loss, total_iter_num)
     print('\nTrain Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # step_lr_scheduler.step() # This is for the Step LR Scheduler
     # plateau_lr_scheduler.step(epoch_loss) # This is for the Reduce LR on Plateau Scheduler
     current_learning_rate = optimizer.param_groups[0]['lr']
-    writer.add_scalar('learning_rate', current_learning_rate, epoch)
+    writer.add_scalar('Learning Rate', current_learning_rate, total_iter_num)
 
     # Save the model checkpoint every N epochs
     if (epoch % config.train.saveModelInterval) == 0:
@@ -249,6 +249,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     if nTestInterval > 0 and epoch % nTestInterval == (nTestInterval - 1):
         model.eval()
         dataloaders_dict = {'Validation': validationLoader}
+
         for key in dataloaders_dict:
             print('\n' + '=' * 10)
             print(key + ':')
@@ -284,12 +285,13 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 images.append(label)
 
             grid_image = make_grid(images, 3, normalize=True, scale_each=True)
-            writer.add_image(key, grid_image, epoch)
+            writer.add_image(key, grid_image, total_iter_num)
 
             epoch_loss = running_loss / (len(dataloader))
 
-            writer.add_scalar(key + ' Epoch Loss', epoch_loss, epoch)
+            writer.add_scalar(key + ' Epoch Loss', epoch_loss, total_iter_num)
             print(key + ' Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
 
+    writer.add_scalar('Epoch Number', epoch, total_iter_num)
 
 writer.close()
