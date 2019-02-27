@@ -18,13 +18,8 @@ from torch import nn
 from sklearn import preprocessing
 from skimage.transform import resize
 
-'''
-This script takes in a depth image in .exr format. 
-Then it cuts out a hole in it and converts it as a scaled png image. Used as input to the depth2depth module.
-'''
 
 def exr_loader(EXR_PATH, ndim=3):
-
     """
     loads an .exr file as a numpy array
     :param path: path to the file
@@ -62,8 +57,11 @@ def exr_loader(EXR_PATH, ndim=3):
 
 
 def main():
-    '''It expects a dataset which is a directory containing all the depth.exr files.
-    Script converts the exr files to png images
+    '''Converts dataset of float32 depth.exr images to scaled 16-bit png images with holes
+
+    This script takes in a dataset of depth images in a float32 .exr format.
+    Then it cuts out a hole in each and converts to a scaled uint16 png image.
+    These modified depth images are used as input to the depth2depth module.
     '''
     parser = argparse.ArgumentParser(
         description='Dataset Directory path')
@@ -73,11 +71,11 @@ def main():
     args = parser.parse_args()
 
     # create a directory for depth scaled png images, if it doesn't exist
-    depth_imgs = os.path.join(args.depth_path , 'depth_scaled_png')
+    depth_imgs = os.path.join(args.depth_path, 'depth_scaled_png')
 
     if not os.path.isdir(depth_imgs):
         os.makedirs(depth_imgs)
-        print ("    Created dir:", depth_imgs)
+        print("    Created dir:", depth_imgs)
     else:
         print("    Already Exists:", depth_imgs)
 
@@ -95,8 +93,8 @@ def main():
             height, width = np_image.shape
             # h_start, h_stop = (height//8)*5, (height//8)*6
             # w_start, w_stop = (width//8)*5, (width//8)*6
-            h_start, h_stop = (height//8)*5, (height//8)*6
-            w_start, w_stop = (width//8)*5, (width//8)*6
+            h_start, h_stop = (height // 8) * 5, (height // 8) * 6
+            w_start, w_stop = (width // 8) * 5, (width // 8) * 6
 
             # Make half the image zero for testing depth2depth
             np_image[h_start:h_stop, w_start:w_stop] = 0
@@ -109,7 +107,9 @@ def main():
             # Resize and save
             img = img.resize((args.imsize, args.imsize), Image.ANTIALIAS)
             img.save(os.path.join(depth_imgs, name))
-    print('total ', len([name for name in os.listdir(depth_imgs) if os.path.isfile(os.path.join(depth_imgs, name))]), ' converted from exr to png')
+    print('total ', len([name for name in os.listdir(depth_imgs) if os.path.isfile(
+        os.path.join(depth_imgs, name))]), ' converted from exr to png')
+
 
 if __name__ == "__main__":
     main()

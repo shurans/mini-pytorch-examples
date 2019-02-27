@@ -16,8 +16,7 @@ import time
 
 from PIL import Image
 from pathlib import Path
-#from scipy.misc import imsave
-from imageio import imsave
+import imageio
 
 import torch
 import torchvision
@@ -25,62 +24,65 @@ from torchvision import transforms, utils
 from torch import nn
 from skimage.transform import resize
 
-from .utils import exr_loader, exr_saver
+from utils import exr_loader, exr_saver
 
-SUBFOLDER_MAP = {
-    'rgb-files'         :{'postfix'      : '-rgb.jpg',
-                          'folder-name'  : 'rgb-imgs'},
 
-    'depth-files'       :{'postfix'      : '-depth.exr',
-                          'folder-name'  : 'depth-imgs'},
+SUBFOLDER_MAP_SYNTHETIC = {
+    'rgb-files': {'postfix': '-rgb.jpg',
+                  'folder-name': 'rgb-imgs'},
 
-    'json-files'        :{'postfix'      : '-masks.json',
-                          'folder-name'  : 'json-files'},
+    'depth-files': {'postfix': '-depth.exr',
+                    'folder-name': 'depth-imgs'},
 
-    'world-normals'     :{'postfix'      : '-normals.exr',
-                          'folder-name'  : 'world-normals'},
+    'json-files': {'postfix': '-masks.json',
+                   'folder-name': 'json-files'},
 
-    'variant-masks'     :{'postfix'      : '-variantMasks.exr',
-                          'folder-name'  : 'variant-masks'},
+    'world-normals': {'postfix': '-normals.exr',
+                      'folder-name': 'world-normals'},
 
-    'component-masks'   :{'postfix'      : '-componentMasks.exr',
-                          'folder-name'  : 'component-masks'},
+    'variant-masks': {'postfix': '-variantMasks.exr',
+                      'folder-name': 'variant-masks'},
 
-    'camera-normals'    :{'postfix'      : '-cameraNormals.exr',
-                          'folder-name'  : 'camera-normals'},
+    'component-masks': {'postfix': '-componentMasks.exr',
+                        'folder-name': 'component-masks'},
 
-    'camera-normals-rgb':{'postfix'      : '-cameraNormals.png',
-                          'folder-name'  : 'camera-normals/rgb-visualizations'},
+    'camera-normals': {'postfix': '-cameraNormals.exr',
+                       'folder-name': 'camera-normals'},
+
+    'camera-normals-rgb': {'postfix': '-cameraNormals.png',
+                           'folder-name': 'camera-normals/rgb-visualizations'},
 }
 
-SUBFOLDER_MAP_TEST = {
-    'rgb-files'         :{'postfix'      : '-rgb.jpg',
-                          'folder-name'  : 'rgb-imgs'},
+SUBFOLDER_MAP_REAL = {
+    'rgb-files': {'postfix': '-rgb.jpg',
+                  'folder-name': 'rgb-imgs'},
 
-    'depth-files'       :{'postfix'      : '-depth.npy',
-                          'folder-name'  : 'depth-imgs'},
+    'depth-files': {'postfix': '-depth.npy',
+                    'folder-name': 'depth-imgs'},
 }
 
 NEW_DATASET_PATHS = {
-    'root'          : '../data/dataset',
-    'source-files'  : 'source-files',
-    'training-data' : 'resized-files',
+    'root': '../data/dataset',
+    'source-files': 'source-files',
+    'training-data': 'resized-files',
 }
 
-SUBFOLDER_MAP_RESIZED = {
-    'preprocessed-camera-normals'       :{'postfix': '-cameraNormals.exr',
-                                          'folder-name': 'preprocessed-camera-normals'},
+# The subfolders that will be present within the resized output for synthetic images.
+SUBFOLDER_MAP_RESIZED_SYNTHETIC = {
+    'preprocessed-camera-normals': {'postfix': '-cameraNormals.exr',
+                                    'folder-name': 'preprocessed-camera-normals'},
 
-    'preprocessed-camera-normals-viz'   :{'postfix': '-cameraNormals.png',
-                                          'folder-name': 'preprocessed-camera-normals/rgb-visualizations'},
+    'preprocessed-camera-normals-viz': {'postfix': '-cameraNormals.png',
+                                        'folder-name': 'preprocessed-camera-normals/rgb-visualizations'},
 
-    'preprocessed-rgb-imgs'             :{'postfix': '-rgb.png',
-                                          'folder-name': 'preprocessed-rgb-imgs'},
+    'preprocessed-rgb-imgs': {'postfix': '-rgb.png',
+                              'folder-name': 'preprocessed-rgb-imgs'},
 }
 
-SUBFOLDER_MAP_RESIZED_TEST = {
-    'preprocessed-rgb-imgs'             :{'postfix': '-rgb.png',
-                                          'folder-name': 'preprocessed-rgb-imgs'},
+# The subfolders that will be present within the resized output for real images.
+SUBFOLDER_MAP_RESIZED_REAL = {
+    'preprocessed-rgb-imgs': {'postfix': '-rgb.png',
+                              'folder-name': 'preprocessed-rgb-imgs'},
 }
 
 
@@ -100,7 +102,7 @@ def scene_prefixes(dataset_path):
     dataset_prefixes = []
     for root, dirs, files in os.walk(dataset_path):
         # one mask json file per scene so we can get the prefixes from them
-        rgb_filename = SUBFOLDER_MAP['rgb-files']['postfix']
+        rgb_filename = SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix']
         for filename in fnmatch.filter(files, '*' + rgb_filename):
             dataset_prefixes.append(filename[0:0 - len(rgb_filename)])
         break
@@ -156,18 +158,18 @@ def move_to_subfolders(dataset_path):
     Returns:
         None
     '''
-    for filetype in SUBFOLDER_MAP:
-        subfolder_path = os.path.join(dataset_path, SUBFOLDER_MAP[filetype]['folder-name'])
+    for filetype in SUBFOLDER_MAP_SYNTHETIC:
+        subfolder_path = os.path.join(dataset_path, SUBFOLDER_MAP_SYNTHETIC[filetype]['folder-name'])
 
         if not os.path.isdir(subfolder_path):
             os.makedirs(subfolder_path)
-            print ("\tCreated dir:", subfolder_path)
+            print("\tCreated dir:", subfolder_path)
         else:
             print("\tAlready Exists:", subfolder_path)
 
-    for filetype in SUBFOLDER_MAP:
-        file_postfix = SUBFOLDER_MAP[filetype]['postfix']
-        subfolder = SUBFOLDER_MAP[filetype]['folder-name']
+    for filetype in SUBFOLDER_MAP_SYNTHETIC:
+        file_postfix = SUBFOLDER_MAP_SYNTHETIC[filetype]['postfix']
+        subfolder = SUBFOLDER_MAP_SYNTHETIC[filetype]['folder-name']
 
         count_files_moved = 0
         files = os.listdir(dataset_path)
@@ -178,7 +180,7 @@ def move_to_subfolders(dataset_path):
             color = 'green'
         else:
             color = 'red'
-        print ("\tMoved", colored(count_files_moved, color), "files to dir:", subfolder)
+        print("\tMoved", colored(count_files_moved, color), "files to dir:", subfolder)
 
 
 ################################ WORLD TO CAMERA SPACE ################################
@@ -237,7 +239,7 @@ def normal_to_rgb(normals_to_convert):
     Surface normals are represented in a range of (-1,1),
     This is converted to a range of (0,255) to be written
     into an image.
-    The surface normals are normally in camera co-ords, 
+    The surface normals are normally in camera co-ords,
     with positive z axis coming out of the page. And the axes are
     mapped as (x,y,z) -> (R,G,B).
     '''
@@ -245,9 +247,6 @@ def normal_to_rgb(normals_to_convert):
     camera_normal_rgb *= 127.5
     camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
     return camera_normal_rgb
-
-
-
 
 
 def preprocess_world_to_cam(world_normals, json_files):
@@ -264,24 +263,26 @@ def preprocess_world_to_cam(world_normals, json_files):
     '''
     #  Output paths and filenames
     camera_normal_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
-                                          SUBFOLDER_MAP['camera-normals']['folder-name'])
+                                          SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'])
     camera_normal_rgb_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
-                                              SUBFOLDER_MAP['camera-normals-rgb']['folder-name'])
+                                              SUBFOLDER_MAP_SYNTHETIC['camera-normals-rgb']['folder-name'])
 
-    prefix = os.path.basename(world_normals)[0:0 - len(SUBFOLDER_MAP['world-normals']['postfix'])]
-    output_camera_normal_filename = (prefix + SUBFOLDER_MAP['camera-normals']['postfix'])
-    camera_normal_rgb_filename = (prefix + SUBFOLDER_MAP['camera-normals-rgb']['postfix'])
+    prefix = os.path.basename(world_normals)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])]
+    output_camera_normal_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])
+    camera_normal_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals-rgb']['postfix'])
     output_camera_normal_file = os.path.join(camera_normal_dir_path, output_camera_normal_filename)
     camera_normal_rgb_file = os.path.join(camera_normal_rgb_dir_path, camera_normal_rgb_filename)
 
     # If cam normal already exists, skip
     if Path(output_camera_normal_file).is_file():
-        print('  Skipping {}, it already exists'.format(os.path.join(SUBFOLDER_MAP['camera-normals']['folder-name'], output_camera_normal_filename)))
+        print('  Skipping {}, it already exists'.format(os.path.join(
+            SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'], output_camera_normal_filename)))
         return False
 
-    world_normal_file = os.path.join(SUBFOLDER_MAP['world-normals']['folder-name'], os.path.basename(world_normals))
-    camera_normal_file = os.path.join(
-        SUBFOLDER_MAP['camera-normals']['folder-name'], (prefix + SUBFOLDER_MAP['camera-normals']['postfix']))
+    world_normal_file = os.path.join(SUBFOLDER_MAP_SYNTHETIC['world-normals']['folder-name'],
+                                     os.path.basename(world_normals))
+    camera_normal_file = os.path.join(SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'],
+                                      prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])
     print("  Converting {} to {}".format(world_normal_file, camera_normal_file))
 
     # Read EXR File
@@ -310,7 +311,7 @@ def preprocess_world_to_cam(world_normals, json_files):
 
     # Output converted Normals as RGB images
     camera_normal_rgb = normal_to_rgb(camera_normal)
-    imsave(camera_normal_rgb_file, camera_normal_rgb)
+    imageio.imwrite(camera_normal_rgb_file, camera_normal_rgb)
 
     return True
 
@@ -320,9 +321,9 @@ def preprocess_normals(input):
     """Resize and Normalize Normals and save as Numpy array.
 
     Args:
-        normals_path (str): 
-        (normals_path, (height, width)) (tuple): normals_path (str)     = The path to an exr file that contains the normal to be preprocessed.
-                                                 (height, width)  (int) = The size to which image is to be resized.
+        (normals_path, (height, width)) (tuple):
+            normals_path (str)     = The path to an exr file that contains the normal to be preprocessed.
+            (height, width)  (int) = The size to which image is to be resized.
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
 
@@ -332,22 +333,25 @@ def preprocess_normals(input):
     if len(imsize) != 2:
         raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
 
-    prefix = os.path.basename(normals_path)[0:0 - len(SUBFOLDER_MAP['camera-normals']['postfix'])]
+    prefix = os.path.basename(normals_path)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])]
 
     preprocess_normals_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                                 SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['folder-name'])
+                                          SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals']['folder-name'])
     preprocess_normal_viz_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                              SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals-viz']['folder-name'])
+                                             SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals-viz']
+                                                                            ['folder-name'])
 
-    preprocess_normals_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['postfix']
-    preprocess_normal_viz_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals-viz']['postfix']
+    preprocess_normals_filename = prefix + SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals']['postfix']
+    preprocess_normal_viz_filename = prefix + (SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals-viz']
+                                                                              ['postfix'])
 
     output_file = os.path.join(preprocess_normals_dir, preprocess_normals_filename)
     output_rgb_file = os.path.join(preprocess_normal_viz_dir, preprocess_normal_viz_filename)
 
     if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_RESIZED['preprocessed-camera-normals']['folder-name'],
-                                                                       preprocess_normals_filename)))
+        print("    Skipping {}, it already exists"
+              .format(os.path.join(SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals']['folder-name'],
+                                   preprocess_normals_filename)))
         return False
 
     # print('    Converting {}'.format(normals_path))
@@ -373,7 +377,7 @@ def preprocess_normals(input):
 
     # Output converted Normals as RGB images
     camera_normal_rgb = normal_to_rgb(normals.transpose(1, 2, 0))
-    imsave(output_rgb_file, camera_normal_rgb)
+    imageio.imwrite(output_rgb_file, camera_normal_rgb)
 
     return True
 
@@ -382,8 +386,9 @@ def preprocess_rgb(input):
     """Resize and Normalize RGB jpeg files and save as Numpy array.
 
     Args:
-        (im_path, (height, width)) (tuple): im_path (str)          = The path to a jpg image. This need not be an absolute path.
-                                            (height, width)  (int) = The size to which image is to be resized.
+        (im_path, (height, width)) (tuple):
+            im_path (str)          = The path to a jpg image. This need not be an absolute path.
+            (height, width)  (int) = The size to which image is to be resized.
 
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
@@ -394,69 +399,93 @@ def preprocess_rgb(input):
     if len(imsize) != 2:
         raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
 
-    prefix = os.path.basename(im_path)[0:0 - len(SUBFOLDER_MAP['rgb-files']['postfix'])]
+    prefix = os.path.basename(im_path)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix'])]
 
     preprocess_rgb_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                             SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['folder-name'])
-    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['postfix']
-    
+                                      SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['folder-name'])
+    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['postfix']
+
     output_file = os.path.join(preprocess_rgb_dir, preprocess_rgb_filename)
-    
 
     if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists".format(os.path.join(SUBFOLDER_MAP_RESIZED['preprocessed-rgb-imgs']['folder-name'],
-                                                                       preprocess_rgb_filename)))
+        print("    Skipping {}, it already exists"
+              .format(os.path.join(SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['folder-name'],
+                                   preprocess_rgb_filename)))
         return False
 
     # Open Image, transform and save
     im = Image.open(im_path).convert("RGB")
 
     tf = transforms.Compose([
-        transforms.Resize(imsize, interpolation = Image.BILINEAR),    #TODO: RESIZE INTO 16:9 ASPECT RATIO. ACCEPT 2 INPUTS FOR IMSIZE, OR TUPLE
-        #transforms.ToTensor(), #saving back as image, this not needed.
-        #transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        # TODO: RESIZE INTO 16:9 ASPECT RATIO. ACCEPT 2 INPUTS FOR IMSIZE, OR TUPLE
+        transforms.Resize(imsize, interpolation=Image.BILINEAR),
+        # transforms.ToTensor(), #saving back as image, this not needed.
+        # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
     im = tf(im)
 
     im = np.array(im)
-    
-    
+
     # Output converted RGB numpy arrays as RGB images
-    imsave(output_file, im)
+    imageio.imwrite(output_file, im)
     print('    saved', output_file)
 
     return True
 
 
 def main():
-    '''Pre-Processes provided dataset for Google Brain Transparent Object Project.
-    It expects a dataset which is a directory containing all the files. The expected naming of the files is set
-    as postfix in the SUBFOLDER_MAP dict.
+    '''Pre-Processes provided dataset for Surface Normal and Outline Estimation models.
+    It expects a dataset which is a directory containing all the files in the root folder itself. Files in subfolders
+    are ignored. Each of the files are expected to be named in a certain format. The expected naming of the files is
+    set as postfix in the SUBFOLDER_MAP dicts.
+    Eg dataset:
+    |- dataset/
+    |--000000000-rgb.jpg
+    |--000000000-depth.exr
+    |--000000000-normals.exr
+    |--000000000-variantMask.exr
+    ...
+    |--000000001-rgb.jpg
+    |--000000001-depth.exr
+    |--000000001-normals.exr
+    |--000000001-variantMask.exr
+    ...
+
+    The processing consists of 3 Stages:
+        - Stage 1: Move all the files from source directory to dest dir, rename files to have a contiguous numbering of
+                   prefix. Create subfolders for each file type and move files to the subfolders.
+        - Stage 2: Transform surface normals from World co-ordinates to Camera co-ordinates.
+        - Stage 3: Resize the files required for training models to a smaller size for ease of loading data.
 
     Note: In a file named '000000020-rgb.jpg' its prefix is '000000020' and its postfix '-rgb.jpg'
-
-    Requires Python > 3.2
+          Requires Python > 3.2
     '''
-    parser = argparse.ArgumentParser(description='Rearrange non-contiguous scenes in a dataset, move to separate folders and process.')
+
+    parser = argparse.ArgumentParser(
+        description='Rearrange non-contiguous numbered images in a dataset, move to separate folders and process.')
 
     parser.add_argument('--p', required=True, help='Path to dataset', metavar='path/to/dataset')
-    parser.add_argument('--root', default='../data', help='The root directory of new dataset. Files will moved to and created here.', metavar='path/to/result')
-    parser.add_argument('--num_start', default=0, type=int,help='The initial value from which the numbering of renamed files must start')
+    parser.add_argument('--root', default='../data',
+                        help='The root directory of new dataset. Files will moved to and created here.',
+                        metavar='path/to/result')
+    parser.add_argument('--num_start', default=0, type=int,
+                        help='The initial value from which the numbering of renamed files must start')
     parser.add_argument('--height', default=288, type=int, help='The size to which input will be resized to')
-    parser.add_argument('--width' , default=512, type=int, help='The size to which input will be resized to')
-    parser.add_argument('--test_set', action='store_true', help='Whether we\'re processing a test set, which has only rgb images, and optionally depth images. If this flag is passed, only rgb/depth images are considered')
+    parser.add_argument('--width', default=512, type=int, help='The size to which input will be resized to')
+    parser.add_argument('--test_set', action='store_true',
+                        help='Whether we\'re processing a test set, which has only rgb images, and optionally depth images.\
+                              If this flag is passed, only rgb/depth images are processed, all others are ignored.')
     args = parser.parse_args()
-    
-    global SUBFOLDER_MAP
-    global SUBFOLDER_MAP_TEST
-    global SUBFOLDER_MAP_RESIZED
-    global SUBFOLDER_MAP_RESIZED_TEST
+
+    global SUBFOLDER_MAP_SYNTHETIC
+    global SUBFOLDER_MAP_REAL
+    global SUBFOLDER_MAP_RESIZED_SYNTHETIC
+    global SUBFOLDER_MAP_RESIZED_REAL
     imsize = (args.height, args.width)
     NEW_DATASET_PATHS['root'] = args.root
     if (args.test_set):
-        SUBFOLDER_MAP = SUBFOLDER_MAP_TEST
-        SUBFOLDER_MAP_RESIZED = SUBFOLDER_MAP_RESIZED_TEST
-
+        SUBFOLDER_MAP_SYNTHETIC = SUBFOLDER_MAP_REAL
+        SUBFOLDER_MAP_RESIZED_SYNTHETIC = SUBFOLDER_MAP_RESIZED_REAL
 
     # Check if source dir is valid
     src_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'])
@@ -469,19 +498,17 @@ def main():
             exit()
     else:
         if ((not os.path.isdir(args.p)) or (not os.listdir(args.p))):
-            print(colored("\nWARNING: Source directory '{}' does not exist or is empty.\n  However, found dest dir '{}'.\n".format(args.p, src_dir_path), 'red'))
-            print(colored("  Assuming files have already been renamed and moved from Source directory.\n  Proceeding to process files in Dest dir." , 'red'))
+            print(colored("\nWARNING: Source directory '{}' does not exist or is empty.\
+                          \n  However, found dest dir '{}'.\n".format(args.p, src_dir_path), 'red'))
+            print(colored("  Assuming files have already been renamed and moved from Source directory.\
+                          \n  Proceeding to process files in Dest dir.", 'red'))
             time.sleep(2)
-            
 
-    
-
-    
     ### STAGE 1: Move the data into subfolder ###
     # Create new dir to store processed dataset
     if not os.path.isdir(src_dir_path):
         os.makedirs(src_dir_path)
-        print ("\nCreated dirs to store new dataset:", src_dir_path)
+        print("\nCreated dirs to store new dataset:", src_dir_path)
     else:
         print("\nDataset dir exists:", src_dir_path)
 
@@ -496,47 +523,43 @@ def main():
     print("\nSeparating dataset into folders.")
     move_to_subfolders(src_dir_path)
 
-
-
-
     ### STAGE 2: Convert World Normals to Camera Normals - skip if test set ###
     if not (args.test_set):
         # Create a pool of processes. By default, one is created for each CPU in your machine.
         with concurrent.futures.ProcessPoolExecutor() as executor:
             # Get a list of files to process
-            world_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP['world-normals']['folder-name'])
-            json_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP['json-files']['folder-name'])
-            
-            world_normals_files_list = sorted(glob.glob(os.path.join(world_normals_dir, "*" +
-                                                        SUBFOLDER_MAP['world-normals']['postfix'])))
-            json_files_list = sorted(glob.glob(os.path.join(json_files_dir, "*" + SUBFOLDER_MAP['json-files']['postfix'])))
+            world_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['world-normals']['folder-name'])
+            json_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['json-files']['folder-name'])
+
+            world_normals_files_list = sorted(glob.glob(
+                os.path.join(world_normals_dir, "*" +
+                             SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])))
+            json_files_list = sorted(glob.glob(os.path.join(
+                json_files_dir, "*" + SUBFOLDER_MAP_SYNTHETIC['json-files']['postfix'])))
 
             # Process the list of files, but split the work across the process pool to use all CPUs!
             print("\n\nConverting World co-ord Normals to Camera co-ord Normals...Check your CPU usage!!")
             num_converted, num_skipped = 0, 0
             for converted_file in executor.map(preprocess_world_to_cam, world_normals_files_list, json_files_list):
-                if converted_file == True:
+                if converted_file is True:
                     num_converted += 1
-                if converted_file == False:
+                else:
                     num_skipped += 1
 
             print(colored('\n  Converted {} world-normals'.format(num_converted), 'green'))
             print(colored('  Skipped {} world-normals'.format(num_skipped), 'red'))
-
-    
-    
 
     ### STAGE 3: Preprocess the data required for training ###
     # Create dir to store training data
     print("\n\nPre-Processing data - this will be directly used as training data by model")
     train_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'])
 
-    for filetype in SUBFOLDER_MAP_RESIZED:
-        subfolder_path = os.path.join(train_dir_path, SUBFOLDER_MAP_RESIZED[filetype]['folder-name'])
+    for filetype in SUBFOLDER_MAP_RESIZED_SYNTHETIC:
+        subfolder_path = os.path.join(train_dir_path, SUBFOLDER_MAP_RESIZED_SYNTHETIC[filetype]['folder-name'])
 
         if not os.path.isdir(subfolder_path):
             os.makedirs(subfolder_path)
-            print ("    Created dir:", subfolder_path)
+            print("    Created dir:", subfolder_path)
         else:
             print("    Already Exists:", subfolder_path)
 
@@ -547,31 +570,31 @@ def main():
         # Process the list of files, but split the work across the process pool to use all CPUs!
 
         # rgb files
-        rgb_imgs_path = os.path.join(src_dir_path, SUBFOLDER_MAP['rgb-files']['folder-name'])
-        image_files_rgb = glob.glob(os.path.join(rgb_imgs_path, "*" + SUBFOLDER_MAP['rgb-files']['postfix']))
+        rgb_imgs_path = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['rgb-files']['folder-name'])
+        image_files_rgb = glob.glob(os.path.join(rgb_imgs_path, "*" + SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix']))
 
         input = [(image, imsize) for image in sorted(image_files_rgb)]
         num_converted, num_skipped = 0, 0
         for converted_file in executor.map(preprocess_rgb, input):
-            if converted_file == True:
+            if converted_file is True:
                 num_converted += 1
-            if converted_file == False:
+            else:
                 num_skipped += 1
         print(colored('\n  Pre-processed {} rgb files'.format(num_converted), 'green'))
         print(colored('  Skipped {} rgb files\n'.format(num_skipped), 'red'))
-        
-        # surface normal files - skip if test set 
+
+        # surface normal files - skip if test set
         if not (args.test_set):
-            camera_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP['camera-normals']['folder-name'])
+            camera_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'])
             image_files_normals = glob.glob(os.path.join(camera_normals_path, "*" +
-                                                        SUBFOLDER_MAP['camera-normals']['postfix']))
-            
+                                                         SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix']))
+
             input = [(image, imsize) for image in sorted(image_files_normals)]
             num_converted, num_skipped = 0, 0
             for converted_file in executor.map(preprocess_normals, input):
-                if converted_file == True:
+                if converted_file is True:
                     num_converted += 1
-                if converted_file == False:
+                else:
                     num_skipped += 1
             print(colored('\n  Pre-processed {} camera-normal files'.format(num_converted), 'green'))
             print(colored('  Skipped {} camera-normal files\n'.format(num_skipped), 'red'))

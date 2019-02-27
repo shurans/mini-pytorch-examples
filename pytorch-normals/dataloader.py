@@ -28,7 +28,7 @@ class SurfaceNormalsDataset(Dataset):
                  label_dir='data/datasets/milk-bottles/resized-files/preprocessed-camera-normals',
                  transform=None,
                  input_only=None,
-                ):
+                 ):
         """
         Args:
             input_dir (str): Path to folder containing the input images.
@@ -46,10 +46,9 @@ class SurfaceNormalsDataset(Dataset):
         # Create list of filenames
         self._datalist_input = None  # Variable containing list of all input images filenames in dataset
         self._datalist_label = None  # Variable containing list of all ground truth filenames in dataset
-        self._extension_input = '.png' # The file extension of input images
-        self._extension_label = '.exr' # The file extension of labels
+        self._extension_input = '.png'  # The file extension of input images
+        self._extension_label = '.exr'  # The file extension of labels
         self._create_lists_filenames(self.images_dir, self.labels_dir)
-
 
     def __len__(self):
         return len(self._datalist_input)
@@ -73,7 +72,8 @@ class SurfaceNormalsDataset(Dataset):
 
         # Apply image augmentations and convert to Tensor
         if self.transform is not None:
-            raise ValueError('Transforms are not supported for now. Because Surface normals not stored as PIL image, cannot apply transforms!')
+            raise ValueError('Transforms are not supported for now. Because Surface normals not stored as PIL image,\
+                             cannot apply transforms!')
 
         # if self.transform:
         #     det_tf = self.transform.to_deterministic()
@@ -81,7 +81,8 @@ class SurfaceNormalsDataset(Dataset):
         #     _newlabel = det_tf.augment_image(_newlabel, hooks=ia.HooksImages(activator=self._activator_masks))
         # _img = np.ascontiguousarray(_img) # To prevent errors from negative stride, as caused by fliplr()
         # _img_tensor = transforms.ToTensor()(_img)
-        # _newlabel_tensor = transforms.ToTensor()(_newlabel.astype(np.float)) # Without conversion of numpy to float, the numbers get normalized
+        # Without conversion of numpy to float, the numbers get normalized
+        # _newlabel_tensor = transforms.ToTensor()(_newlabel.astype(np.float))
 
         return _img, _label
 
@@ -92,8 +93,8 @@ class SurfaceNormalsDataset(Dataset):
         assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
         assert os.path.isdir(labels_dir), 'This directory does not exist: %s' % (labels_dir)
 
-        imageSearchStr = os.path.join(images_dir, '*'+self._extension_input)
-        labelSearchStr = os.path.join(labels_dir, '*'+self._extension_label)
+        imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
+        labelSearchStr = os.path.join(labels_dir, '*' + self._extension_label)
         imagepaths = sorted(glob.glob(imageSearchStr))
         labelpaths = sorted(glob.glob(labelSearchStr))
 
@@ -105,12 +106,11 @@ class SurfaceNormalsDataset(Dataset):
         if numLabels == 0:
             raise ValueError('No labels found in given directory. Searched for {}'.format(imageSearchStr))
         if numImages != numImages:
-            raise ValueError('The number of images and labels do not match. Please check data, found {} images and {} labels'.format(
-                                numImages, numLabels))
+            raise ValueError('The number of images and labels do not match. Please check data,\
+                             found {} images and {} labels'.format(numImages, numLabels))
 
         self._datalist_input = imagepaths
         self._datalist_label = labelpaths
-
 
     def _activator_masks(self, images, augmenter, parents, default):
         '''Used with imgaug to help only apply some augmentations to images and not labels
@@ -147,7 +147,7 @@ class SurfaceNormalsRealImagesDataset(Dataset):
 
         # Create list of filenames
         self._datalist_input = None  # Variable containing list of all input images filenames in dataset
-        self._extension_input = '.png' # The file extension of input images
+        self._extension_input = '.png'  # The file extension of input images
         self._create_lists_filenames(self.images_dir)
 
     def __len__(self):
@@ -174,7 +174,7 @@ class SurfaceNormalsRealImagesDataset(Dataset):
         '''
         assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
 
-        imageSearchStr = os.path.join(images_dir, '*'+self._extension_input)
+        imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
         imagepaths = sorted(glob.glob(imageSearchStr))
 
         # Sanity Checks
@@ -183,9 +183,6 @@ class SurfaceNormalsRealImagesDataset(Dataset):
             raise ValueError('No images found in given directory. Searched for {}'.format(imageSearchStr))
 
         self._datalist_input = imagepaths
-
-
-
 
 
 if __name__ == '__main__':
@@ -218,10 +215,8 @@ if __name__ == '__main__':
     #     iaa.Scale((imsize, imsize), 0),
     # ])
 
-
-
-    augs = None # augs_train, augs_test, None
-    input_only = None # ["gaus-blur", "grayscale", "gaus-noise", "brightness", "contrast", "hue-sat", "color-jitter"]
+    augs = None  # augs_train, augs_test, None
+    input_only = None  # ["gaus-blur", "grayscale", "gaus-noise", "brightness", "contrast", "hue-sat", "color-jitter"]
 
     db_test = SurfaceNormalsDataset(
         input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
@@ -233,7 +228,6 @@ if __name__ == '__main__':
     batch_size = 16
     testloader = DataLoader(db_test, batch_size=batch_size, shuffle=True, num_workers=32, drop_last=True)
 
-
     # Show 1 Shuffled Batch of Images
     for ii, batch in enumerate(testloader):
         # Get Batch
@@ -243,8 +237,8 @@ if __name__ == '__main__':
 
         # Show Batch
         sample = torch.cat((img, label), 2)
-        im_vis = torchvision.utils.make_grid(sample, nrow=batch_size//4, padding=2, normalize=True, scale_each=True)
-        plt.imshow(im_vis.numpy().transpose(1,2,0))
+        im_vis = torchvision.utils.make_grid(sample, nrow=batch_size // 4, padding=2, normalize=True, scale_each=True)
+        plt.imshow(im_vis.numpy().transpose(1, 2, 0))
         plt.show()
 
         break
