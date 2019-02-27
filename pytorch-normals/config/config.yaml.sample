@@ -8,25 +8,25 @@ train:
   # Training/Validation Params
   model: 'unet' # Possible models: unet
   backbone: '' # Possible values: None
-  batchSize: 16
+  batchSize: 2
   numEpochs: 500
   imgHeight: 288
   imgWidth: 512
   numClasses: 3
   numWorkers: 32 # Num of workers used in the dataloader
-  logsDir: 'logs' # Directory where logs of each exp will be saved.
+  logsDir: 'logs_test' # Directory where logs of each exp will be saved.
   lossFunc: 'cosine' # Possible values: 'cosine', 'radians'
-  percentageDataForTraining: 0.9 # The percentage of images in dataset to be used for training. Rest used for validation.
+  percentageDataForTraining: 0.01 #0.9 # The percentage of images in dataset to be used for training. Rest used for validation.
 
-  transferLearning: False # Whether to continue training from a prev checkpoint
-  continueTraining: True  # If true, and transferLearning = True, the numbering of epochs will continue from last checkpoint.
+  transferLearning: True # Whether to continue training from a prev checkpoint
+  continueTraining: False  # If true, and transferLearning = True, the numbering of epochs will continue from last checkpoint.
   pathWeightsPrevRun: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to .pth checkpoint file to load to continue training from
 
-  saveImageInterval: 1 # Save output images during training to tensorboard every saveImageInterval epochs
+  saveImageInterval: 5 # Save output images during training to tensorboard every saveImageInterval epochs
   testInterval: 1 # Run on test set every nTestInterval epochs. Keep at 0 to skip tests.
   saveModelInterval: 1 # Save the model checkpoints every N epochs
 
-  validationBatchSize: 32
+  validationBatchSize: 8
 
   # Optimizer Params
   adamOptim:
@@ -54,8 +54,9 @@ eval:
   - images: 'data/datasets/test-real/realsense-captures/resized-files/preprocessed-rgb-imgs'
 
   # Params
-  batchSize: 1
+  batchSize: 3
   numWorkers: 32
-  pathWeightsFile: 'logs/exp-008/checkpoints/checkpoint-epoch-0499.pth' # Path to the checkpoint to be loaded
+  pathWeightsFile: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to the checkpoint to be loaded
   resultsDirSynthetic: 'data/results/test-synthetic' # The dir to which results on synthetic images will be stored
   resultsDirReal: 'data/results/test-real'  # The dir to which results on real images will be stored
+  resultsHdf5SubDir: 'surface-normals-hdf5' # The prediction of model will be saved as hdf5 files in this subfolder within the results folder

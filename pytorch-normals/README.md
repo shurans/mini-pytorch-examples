@@ -4,20 +4,40 @@ This repo contains networks used to detect transparent objects with the help of 
 [Deep Depth Completion of a Single RGB-D Image](https://github.com/yindaz/DeepCompletionRelease) method.
 
 ## To Use
-Install dependencies mentioned below, then clone the repo by
+
+1. Install dependencies mentioned later in this doc. Then clone the repo by
+
 ```
 $ git clone https://github.com/Shreeyak/mini-pytorch-examples.git
 ```
 
-Download the synthetic datasets and pre-process them with the scripts in utils, or download the pre-processed datasets.
+2) Download the synthetic datasets and pre-process them with the scripts in utils, or download the pre-processed datasets.
 
-Add the datasets into pytorch-normals/data/datasets and pytorch-outlines/data/datasets and run the networks. Check out the notebooks 
-for how to run training/eval.
-
+3) Add the datasets into pytorch-normals/data/datasets and pytorch-outlines/data/datasets and run the networks. Check out the notebooks for how to run training/eval.
 
 ## Preparing Data
-The synthetic data that is generated for training has 6 files for each image. All files are placed into a single folder, like so:
+
+### Using the prepared datasets
+
+The pre-processed dataset will have the below folder structure. The actual, full resolution images are stored in `source-files` and are treated as source images to create training data for the model. 
+
+```bash
+milk-bottle
+|- source-files
+   |- ...
+|- resized-files
+   |- ...
 ```
+
+ There are multiple objects for whom synthetic data has been rendered. A separate dataset is prepared for each object. A separate pytorch dataset is
+ used within the code for each of these datasets, which are then concatenated into a large train-val dataset, which is
+ subsequently split into train and val datasets.
+
+### Preparing your own data
+
+The synthetic data that is generated for training has 6 files for each image. All files are placed into a single folder, like so:
+
+```bash
 dataset
 |- 0001-rgb.jpg
 |- 0001-depth.exr
@@ -61,20 +81,7 @@ $ python3 data_processing_script.py  --p "path/to/raw/dataset"
 All the files in the dataset are expected to conform to a certain naming scheme and file format. This list can be seen and
 modified in the dictionaries within the `data_processing_script.py` script.
 
-#### Using the prepared datasets
-The result will have the following folder structure:
 
-```bash
-milk-bottle
-|- source-files
-   |- ...
-|- resized-files
-   |- ...
-```
-
- There are multiple objects for whom synthetic data has been rendered. A separate dataset is prepared for each object. A separate pytorch dataset is
- used within the code for each of these datasets, which are then concatenated into a large train-val dataset, which is
- subsequently split into train and val datasets.
 
 ## Setup Dependencies
 
@@ -148,14 +155,11 @@ $ sudo apt-get install librealsense2-dev
 $ sudo apt-get install librealsense2-dbg
 ```
 
-### Munch
-[Munch](https://github.com/Infinidat/munch) is a library to convery yaml files into python objects. The dict keys can be accessed as attributes. Similar to [AttrDict](https://pypi.org/project/attrdict/).  
-This lib is used to read in yaml config files and access key-value pairs as object attributes.
+### AttrDict
+[AttrDict](https://pypi.org/project/attrdict/) is a library to convert yaml files into python objects. The dict keys can be accessed as attributes.
+This lib is used to parse the dictionary read in from yaml config file into object attributes, so they can be accessed by dot notation like `config.batchSize`.
 
 ```bash
-# Install Munch
-$ pip install munch # conda install munch
-
 # Install AttrDict
 $ pip install attrdict # conda install attrdict -c conda-forge
 ```
