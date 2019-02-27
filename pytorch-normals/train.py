@@ -168,6 +168,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Each epoch has a training and validation phase
     running_loss = 0.0
+    model.train()
 
     # Iterate over data.
     for iter_num, batch in enumerate(trainLoader):
