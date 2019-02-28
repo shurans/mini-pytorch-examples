@@ -24,17 +24,18 @@ from loss_functions import loss_fn_cosine, loss_fn_radians
 
 print('Inference of Surface Normal Estimation model. Loading checkpoint...')
 
-###################### Config #############################
+###################### Load Config File #############################
 CONFIG_FILE_PATH = 'config/config.yaml'
 with open(CONFIG_FILE_PATH) as fd:
     config_yaml = yaml.safe_load(fd)
 config = AttrDict(config_yaml)
 
-# Read config file stored in the model checkpoint to re-use it's params
+###################### Load Checkpoint and its data #############################
 if not os.path.isfile(config.eval.pathWeightsFile):
     raise ValueError('Invalid path to the given weights file in config. The file "{}" does not exist'.format(
         config.eval.pathWeightsFile))
 
+# Read config file stored in the model checkpoint to re-use it's params
 CHECKPOINT = torch.load(config.eval.pathWeightsFile, map_location='cpu')
 if 'model_state_dict' in CHECKPOINT:
     print(colored('Loaded data from checkpoint {}'.format(config.eval.pathWeightsFile), 'green'))
@@ -49,8 +50,6 @@ else:
     raise ValueError('The checkpoint file does not have model_state_dict in it.\
                      Please use the newer checkpoint files!')
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Check for results store dir
 DIR_RESULTS_REAL = os.path.join(config.eval.resultsDirReal, config.eval.resultsHdf5SubDir)
 DIR_RESULTS_SYNTHETIC = os.path.join(config.eval.resultsDirSynthetic, config.eval.resultsHdf5SubDir)
@@ -63,9 +62,8 @@ if not os.path.isdir(DIR_RESULTS_SYNTHETIC):
 
 ###################### DataLoader #############################
 # Make new dataloaders for each synthetic dataset
-# CHECK DATALOADER FOR EXAMPLE OF AUGMENTATIONS
 db_test_list_synthetic = []
-for dataset in config.eval.datasets_synthetic:
+for dataset in config.eval.datasetsSynthetic:
     dataset = dataloader.SurfaceNormalsDataset(
         input_dir=dataset.images,
         label_dir=dataset.labels,
@@ -76,7 +74,7 @@ for dataset in config.eval.datasets_synthetic:
 
 # Make new dataloaders for each real dataset
 db_test_list_real = []
-for dataset in config.eval.datasets_real:
+for dataset in config.eval.datasetsReal:
     dataset = dataloader.SurfaceNormalsRealImagesDataset(
         input_dir=dataset.images,
         imgHeight=config_checkpoint.train.imgHeight,
@@ -105,6 +103,7 @@ if torch.cuda.device_count() > 1:
     # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
     model = nn.DataParallel(model)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 model.eval()
 
@@ -121,8 +120,8 @@ else:
 ### Run Validation and Test Set ###
 print('\nInference - Surface Normal Estimation')
 print('-' * 50 + '\n')
-print('Running inference on Test sets at:\n    {}\n    {}\n'.format(config.eval.datasets_real,
-                                                                    config.eval.datasets_synthetic))
+print('Running inference on Test sets at:\n    {}\n    {}\n'.format(config.eval.datasetsReal,
+                                                                    config.eval.datasetsSynthetic))
 print('Results will be saved to:\n    {}\n    {}\n'.format(config.eval.resultsDirReal,
                                                            config.eval.resultsDirSynthetic))
 

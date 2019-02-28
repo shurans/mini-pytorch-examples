@@ -43,12 +43,12 @@ train:
 # Testing/Inference Config
 eval:
   # Synthetic datasets with ground truth labels
-  datasets_synthetic:
+  datasetsSynthetic:
   - images: 'data/datasets/test-synthetic-10/resized-files/preprocessed-rgb-imgs'
     labels: 'data/datasets/test-synthetic-10/resized-files/preprocessed-camera-normals'
 
   # Datasets of real images, no labels available
-  datasets_real:
+  datasetsReal:
   - images: 'data/datasets/test-real/camera-pics/resized-files/preprocessed-rgb-imgs'
   - images: 'data/datasets/test-real/realsense-captures/resized-files/preprocessed-rgb-imgs'
 
