@@ -164,6 +164,15 @@ This lib is used to parse the dictionary read in from yaml config file into obje
 $ pip install attrdict # conda install attrdict -c conda-forge
 ```
 
+### oyaml
+[oyaml](https://github.com/wimglenn/oyaml) is a drop-in replacement for [PyYAML](http://pyyaml.org/wiki/PyYAML ) which
+preserves dict ordering. Used for pretty prints of config file.
+
+```bash
+# Install oyaml
+$ pip install oyaml
+```
+
 ### Others
 
 ```bash
