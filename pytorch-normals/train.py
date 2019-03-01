@@ -208,7 +208,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         # Get data
         inputs, labels = batch
-        print('inputs: ', np.amin(np.array(inputs)), inputs.shape)
         inputs = inputs.to(device)
         labels = labels.to(device)
 
