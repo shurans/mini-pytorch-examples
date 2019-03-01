@@ -191,7 +191,7 @@ for key in dataloaders_dict:
             # Write Predicted Surface Normal as hdf5 file for depth2depth
             # NOTE: The hdf5 expected shape is (3, height, width), float32
             with h5py.File(result_hdf5_path, "w") as f:
-                dset2 = f.create_dataset('/result', data=output.numpy())
+                dset = f.create_dataset('/result', data=output.numpy())
 
     epoch_loss = running_loss / (len(testLoader))
     print('Test Mean Loss: {:.4f}\n\n'.format(epoch_loss))

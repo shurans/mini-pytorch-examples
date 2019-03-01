@@ -109,13 +109,13 @@ if config.train.model == 'unet':
 else:
     raise ValueError('Invalid model "{}" in config file. Must be one of ["unet"]'.format(config.train.model))
 
-if config.train.transferLearning:
-    print('Transfer Learning enabled. State to be loaded from a prev checkpoint...')
-    if not os.path.isfile(config.train.pathWeightsPrevRun):
+if config.train.continueTraining:
+    print('Transfer Learning enabled. Model State to be loaded from a prev checkpoint...')
+    if not os.path.isfile(config.train.pathPrevCheckpoint):
         raise ValueError('Invalid path to the given weights file for transfer learning.\
-                The file {} does not exist'.format(config.train.pathWeightsPrevRun))
+                The file {} does not exist'.format(config.train.pathPrevCheckpoint))
 
-    CHECKPOINT = torch.load(config.train.pathWeightsPrevRun, map_location='cpu')
+    CHECKPOINT = torch.load(config.train.pathPrevCheckpoint, map_location='cpu')
 
     if 'model_state_dict' in CHECKPOINT:
         # Newer weights file with various dicts
@@ -157,9 +157,12 @@ else:
                      .format(config.train.lrScheduler))
 
 # Continue Training from prev checkpoint if required
-if config.train.transferLearning and 'optimizer_state_dict' in CHECKPOINT:
-    # TODO: remove backward compatibility. Check if optim works properly with this method.
-    optimizer.load_state_dict(CHECKPOINT['optimizer_state_dict'])
+if config.train.continueTraining and config.train.initOptimizerFromCheckpoint:
+    if 'optimizer_state_dict' in CHECKPOINT:
+        optimizer.load_state_dict(CHECKPOINT['optimizer_state_dict'])
+    else:
+        print(colored('Could not load optimizer state from checkpoint, it does not contain "optimizer_state_dict" ',
+                      'red'))
 
 ### Select Loss Func ###
 if config.train.lossFunc == 'cosine':
@@ -173,15 +176,18 @@ else:
 
 ###################### Train Model #############################
 # Set total iter_num (number of batches seen by model, used for logging)
-if config.train.transferLearning and config.train.continueTraining and 'model_state_dict' in CHECKPOINT:
-    # TODO: remove this second check for 'model_state_dict' soon. Kept for ensuring backcompatibility
-    total_iter_num = CHECKPOINT['total_iter_num'] + 1
-    START_EPOCH = CHECKPOINT['epoch'] + 1
-    END_EPOCH = CHECKPOINT['epoch'] + config.train.numEpochs
-else:
-    total_iter_num = 0
-    START_EPOCH = 0
-    END_EPOCH = config.train.numEpochs
+if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint):
+    if 'model_state_dict' in CHECKPOINT:
+        # TODO: remove this second check for 'model_state_dict' soon. Kept for ensuring backcompatibility
+        total_iter_num = CHECKPOINT['total_iter_num'] + 1
+        START_EPOCH = CHECKPOINT['epoch'] + 1
+        END_EPOCH = CHECKPOINT['epoch'] + config.train.numEpochs
+    else:
+        print(colored('Could not load epoch and total iter nums from checkpoint, they do not exist in checkpoint',
+                      'red'))
+        total_iter_num = 0
+        START_EPOCH = 0
+        END_EPOCH = config.train.numEpochs
 
 for epoch in range(START_EPOCH, END_EPOCH):
     print('Epoch {}/{}'.format(epoch, END_EPOCH - 1))
@@ -202,6 +208,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         # Get data
         inputs, labels = batch
+        print('inputs: ', np.amin(np.array(inputs)), inputs.shape)
         inputs = inputs.to(device)
         labels = labels.to(device)
 
@@ -238,6 +245,8 @@ for epoch in range(START_EPOCH, END_EPOCH):
         lr_scheduler.step(epoch_loss)
 
     # Log Current Learning Rate
+    # TODO: NOTE: The lr of adam is not directly accessible. Adam creates a loss for every parameter in model.
+    #    The value read here will only reflect the initial lr value.
     current_learning_rate = optimizer.param_groups[0]['lr']
     writer.add_scalar('Learning Rate', current_learning_rate, total_iter_num)
 

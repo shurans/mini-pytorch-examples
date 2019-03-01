@@ -19,9 +19,10 @@ train:
   lossFunc: 'cosine'  # Possible values: 'cosine', 'radians'
   percentageDataForTraining: 0.9  # The percentage of images in dataset to be used for training. Rest used for validation.
 
-  transferLearning: True  # Whether to continue training from a prev checkpoint
-  continueTraining: False  # If true, and transferLearning = True, the numbering of epochs will continue from last checkpoint.
-  pathWeightsPrevRun: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth'  # Path to .pth checkpoint file to load to continue training from
+  continueTraining: True  # If true, continue training from a checkpoint
+  pathPrevCheckpoint: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to .pth checkpoint file to load to continue training from
+  initOptimizerFromCheckpoint: False  # Re-Initialize optimizer's state from checkpoint. NOTE: when this is enabled, value of learningRate has no effect.
+  loadEpochNumberFromCheckpoint: True # If true, the epoch/iter numbering will start from the checkpoint's last epoch num.
 
   saveImageInterval: 5  # Log output images to tensorboard every saveImageInterval epochs
   saveModelInterval: 5  # Save the model checkpoints every N epochs
