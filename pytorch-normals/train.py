@@ -11,39 +11,15 @@ from termcolor import colored
 import oyaml
 from attrdict import AttrDict
 
-from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
 
-import models.unet_normals as unet
+from models import unet_normals as unet
+from models import deeplab_xception, deeplab_resnet
 import dataloader
-from loss_functions import loss_fn_cosine, loss_fn_radians
-
-
-def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
-    '''Make a grid of images for display purposes
-    Size of grid is (3, N, 3), where each coloum belongs to input, output, label resp
-
-    Args:
-        inputs (Tensor): Batch Tensor of shape (B x C x H x W)
-        outputs (Tensor): Batch Tensor of shape (B x C x H x W)
-        labels (Tensor): Batch Tensor of shape (B x C x H x W)
-        max_num_images_to_save (int, optional): Defaults to 3. Out of the given tensors, chooses a
-            max number of imaged to put in grid
-
-    Returns:
-        numpy.ndarray: A numpy array with of input images arranged in a grid
-    '''
-
-    img_tensor = inputs[:max_num_images_to_save].detach()
-    output_tensor = outputs[:max_num_images_to_save].detach()
-    label_tensor = labels[:max_num_images_to_save].detach()
-
-    images = torch.cat((img_tensor, output_tensor, label_tensor), dim=3)
-    grid_image = make_grid(images, 1, normalize=True, scale_each=True)
-
-    return grid_image
+from loss_functions import loss_fn_cosine, loss_fn_radians, cross_entropy2d
+from utils import utils
 
 
 ###################### Load Config File #############################
@@ -79,14 +55,14 @@ writer.add_text('Config', string, global_step=None)
 
 ###################### DataLoader #############################
 # Create a dataset object for each dataset in our list
-db_trainval = []
+db_trainval_list = []
 for dataset in config.train.datasets:
     dataset = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
                                                transform=None, input_only=None)
-    db_trainval.append(dataset)
+    db_trainval_list.append(dataset)
 
 # Join all the datasets into 1 large dataset
-db_trainval = torch.utils.data.ConcatDataset(db_trainval)
+db_trainval = torch.utils.data.ConcatDataset(db_trainval_list)
 
 # Split into training and validation datasets
 train_size = int(config.train.percentageDataForTraining * len(db_trainval))
@@ -96,7 +72,7 @@ db_train, db_validation = torch.utils.data.random_split(db_trainval, [train_size
 # Create dataloaders
 assert (config.train.batchSize < len(db_train)), 'batchSize cannot be more than the number of images in \
                                                   training dataset'
-assert (config.train.validationBatchSize < len(db_train)),'validationBatchSize cannot be more than the number of \
+assert (config.train.validationBatchSize < len(db_train)), 'validationBatchSize cannot be more than the number of \
                                                            images in validation dataset'
 trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
                          shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
@@ -106,8 +82,15 @@ validationLoader = DataLoader(db_validation, batch_size=config.train.validationB
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
     model = unet.Unet(num_classes=config.train.numClasses)
+elif config.train.model == 'deeplab_xception':
+    model = deeplab_xception.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.output_stride,
+                                            nInputChannels=config.train.numInputChannels, pretrained=True)
+elif config.train.model == 'deeplab_resnet':
+    model = deeplab_resnet.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.output_stride,
+                                          nInputChannels=config.train.numInputChannels, pretrained=True)
 else:
-    raise ValueError('Invalid model "{}" in config file. Must be one of ["unet"]'.format(config.train.model))
+    raise ValueError('Invalid model "{}" in config file. Must be one of ["unet", "deeplab_xception", "deeplab_resnet"]'
+                     .format(config.train.model))
 
 if config.train.continueTraining:
     print('Transfer Learning enabled. Model State to be loaded from a prev checkpoint...')
@@ -138,22 +121,27 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
 ###################### Setup Optimizer #############################
-optimizer = torch.optim.Adam(model.parameters(), lr=config.train.adamOptim.learningRate,
-                             weight_decay=config.train.adamOptim.weightDecay)
+if config.train.model == 'unet':
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.train.optimAdam.learningRate,
+                                 weight_decay=config.train.optimAdam.weightDecay)
+elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
+    optimizer = torch.optim.SGD(model.parameters(), lr=config.train.optimSgd.learningRate,
+                                momentum=config.train.optimSgd.momentum,
+                                weight_decay=config.train.optimSgd.weight_decay)
 
 if not config.train.lrScheduler:
     pass
-elif not config.train.lrScheduler and config.train.lrScheduler == 'StepLR':
+elif config.train.lrScheduler == 'StepLR':
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=config.train.lrSchedulerStep.step_size,
                                                    gamma=config.train.lrSchedulerStep.gamma)
-elif not config.train.lrScheduler and config.train.lrScheduler == 'ReduceLROnPlateau':
+elif config.train.lrScheduler == 'ReduceLROnPlateau':
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                               factor=config.train.lrSchedulerPlateau.factor,
                                                               patience=config.train.lrSchedulerPlateau.patience,
                                                               verbose=True)
 else:
-    raise ValueError('Invalid Scheduler from config file: "{}". Valid values are ["", "StepLR", "ReduceLROnPlateau"'
+    raise ValueError("Invalid Scheduler from config file: '{}'. Valid values are ['', 'StepLR', 'ReduceLROnPlateau']"
                      .format(config.train.lrScheduler))
 
 # Continue Training from prev checkpoint if required
@@ -161,17 +149,19 @@ if config.train.continueTraining and config.train.initOptimizerFromCheckpoint:
     if 'optimizer_state_dict' in CHECKPOINT:
         optimizer.load_state_dict(CHECKPOINT['optimizer_state_dict'])
     else:
-        print(colored('Could not load optimizer state from checkpoint, it does not contain "optimizer_state_dict" ',
-                      'red'))
+        print(colored('WARNING: Could not load optimizer state from checkpoint as checkpoint does not contain \
+                      "optimizer_state_dict". Continuing without loading optimizer state. ', 'red'))
 
 ### Select Loss Func ###
 if config.train.lossFunc == 'cosine':
     criterion = loss_fn_cosine
 elif config.train.lossFunc == 'radians':
     criterion = loss_fn_radians
+elif config.train.lossFunc == 'cross_entropy2d':
+    criterion = cross_entropy2d
 else:
-    raise ValueError('Invalid lossFunc from config file. Can only be "cosine" or "radians".\
-                     Value passed is: {}'.format(config.train.lossFunc))
+    raise ValueError("Invalid lossFunc from config file. Can only be ['cosine', 'radians', 'cross_entropy2d'].\
+                     Value passed is: {}".format(config.train.lossFunc))
 
 
 ###################### Train Model #############################
@@ -251,7 +241,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log 3 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=3)
+        grid_image = utils.create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=3)
         writer.add_image('Train', grid_image, total_iter_num)
 
     # Save the model checkpoint every N epochs
@@ -309,7 +299,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log 10 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=10)
+        grid_image = utils.create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=10)
         writer.add_image('Validation', grid_image, total_iter_num)
 
 writer.close()

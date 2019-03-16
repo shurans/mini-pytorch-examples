@@ -5,6 +5,10 @@ import numpy as np
 import OpenEXR
 import Imath
 
+import torch
+from torchvision.utils import make_grid
+
+
 def exr_loader(EXR_PATH, ndim=3):
     """
     loads an .exr file as a numpy array
@@ -12,7 +16,7 @@ def exr_loader(EXR_PATH, ndim=3):
     :param ndim: number of channels that the image has,
                     if 1 the 'R' channel is taken
                     if 3 the 'R', 'G' and 'B' channels are taken
-    :return: np.array of shape (ndim x H x W) 
+    :return: np.array of shape (ndim x H x W)
     """
 
     exr_file = OpenEXR.InputFile(EXR_PATH)
@@ -55,8 +59,8 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
     if ndim == 3:
         # Check params
         if ndarr.shape[0] != 3 or len(ndarr.shape) != 3:
-            raise ValueError(
-                'The shape of the tensor should be 3 x height x width for ndim = 3. Given shape is {}'.format(ndarr.shape))
+            raise ValueError('The shape of the tensor should be 3 x height x width for ndim = 3. Given shape is {}'
+                             .format(ndarr.shape))
 
         # Convert each channel to strings
         Rs = ndarr[0, :, :].astype(np.float16).tostring()
@@ -88,3 +92,28 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
         out = OpenEXR.OutputFile(EXR_PATH, HEADER)
         out.writePixels({'R': Rs})
         out.close()
+
+
+def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
+    '''Make a grid of images for display purposes
+    Size of grid is (3, N, 3), where each coloum belongs to input, output, label resp
+
+    Args:
+        inputs (Tensor): Batch Tensor of shape (B x C x H x W)
+        outputs (Tensor): Batch Tensor of shape (B x C x H x W)
+        labels (Tensor): Batch Tensor of shape (B x C x H x W)
+        max_num_images_to_save (int, optional): Defaults to 3. Out of the given tensors, chooses a
+            max number of imaged to put in grid
+
+    Returns:
+        numpy.ndarray: A numpy array with of input images arranged in a grid
+    '''
+
+    img_tensor = inputs[:max_num_images_to_save].detach()
+    output_tensor = outputs[:max_num_images_to_save].detach()
+    label_tensor = labels[:max_num_images_to_save].detach()
+
+    images = torch.cat((img_tensor, output_tensor, label_tensor), dim=3)
+    grid_image = make_grid(images, 1, normalize=True, scale_each=True)
+
+    return grid_image

@@ -4,8 +4,9 @@ This module contains the loss functions used to train the surface normals estima
 
 import torch
 import torch.nn as nn
+import numpy as np
 
-###################### Loss fuction #############################
+
 def loss_fn_cosine(input_vec, target_vec, reduction='elementwise_mean'):
     '''A cosine loss function for use with surface normals estimation.
     Calculates the cosine loss between 2 vectors. Both should be of the same size.
@@ -47,8 +48,10 @@ def loss_fn_radians(input_vec, target_vec, reduction='elementwise_mean'):
     by taking the inverse cos of cosine loss.
 
     Arguments:
-        input_vec {tensor} -- First vector with whole loss is to be calculated. Expected size (batchSize, 3, height, width)
-        target_vec {tensor} -- Second vector with whom the loss is to be calculated. Expected size (batchSize, 3, height, width)
+        input_vec {tensor} -- First vector with whole loss is to be calculated.
+                              Expected size (batchSize, 3, height, width)
+        target_vec {tensor} -- Second vector with whom the loss is to be calculated.
+                               Expected size (batchSize, 3, height, width)
 
     Keyword Arguments:
         reduction {str} -- Can have values 'elementwise_mean' and 'none'.
@@ -74,3 +77,40 @@ def loss_fn_radians(input_vec, target_vec, reduction='elementwise_mean'):
             'Invalid value for reduction  parameter passed. Please use \'elementwise_mean\' or \'none\''.format())
 
     return loss_rad
+
+
+def cross_entropy2d(logit, target, ignore_index=255, weight=None, batch_average=True):
+    """
+    The loss is
+
+    .. math::
+        \sum_{i=1}^{\\infty} x_{i}
+
+        `(minibatch, C, d_1, d_2, ..., d_K)`
+
+    Args:
+        logit (Tensor): Output of network
+        target (Tensor): Ground Truth
+        ignore_index (int, optional): Defaults to 255. The pixels with this labels do not contribute to loss
+        weight (List, optional): Defaults to None. Weight assigned to each class
+        batch_average (bool, optional): Defaults to True. Whether to consider the loss of each element in the batch.
+
+    Returns:
+        Float: The value of loss.
+    """
+
+    n, c, h, w = logit.shape
+    target = target.squeeze(1)
+
+    if weight is None:
+        criterion = nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index, reduction='sum')
+    else:
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor(weight, dtype=torch.float32),
+                                        ignore_index=ignore_index, reduction='sum')
+
+    loss = criterion(logit, target.long())
+
+    if batch_average:
+        loss /= n
+
+    return loss
