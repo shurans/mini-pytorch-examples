@@ -67,22 +67,24 @@ def main():
         description='Dataset Directory path')
     parser.add_argument('-p', '--depth-path', required=True,
                         help='Path to directory containing depth images', metavar='path/to/dataset')
-    parser.add_argument('-s', '--imsize', help='Path to dataset', type=int, default=224)
+    parser.add_argument('-l', '--height', help='The height of output image', type=int, default=288)
+    parser.add_argument('-w', '--width', help='The width of output image', type=int, default=512)
     args = parser.parse_args()
 
     # create a directory for depth scaled png images, if it doesn't exist
-    depth_imgs = os.path.join(args.depth_path, 'depth_scaled_png')
+    depth_imgs = os.path.join(args.depth_path, 'input-depth-scaled')
 
     if not os.path.isdir(depth_imgs):
         os.makedirs(depth_imgs)
         print("    Created dir:", depth_imgs)
     else:
-        print("    Already Exists:", depth_imgs)
+        print("    Output Dir Already Exists:", depth_imgs)
+        print("    Will overwrite files within")
 
     # read the exr file as np array, scale it and store as png image
     scale_value = 4000
     print('Converting depth files from exr format to a scaled uin16 png format...')
-    print('Will make half of img horizontally zero during conversion to test depth2depth executable')
+    print('Will make a portion of the img zero during conversion to test depth2depth executable')
 
     for root, dirs, files in os.walk(args.depth_path):
         for filename in sorted(fnmatch.filter(files, '*depth.exr')):
@@ -91,13 +93,13 @@ def main():
             np_image = np_image * scale_value
             np_image = np_image.astype(np.uint16)
             height, width = np_image.shape
-            # h_start, h_stop = (height//8)*5, (height//8)*6
-            # w_start, w_stop = (width//8)*5, (width//8)*6
-            h_start, h_stop = (height // 8) * 5, (height // 8) * 6
-            w_start, w_stop = (width // 8) * 5, (width // 8) * 6
+
+            # Create a small rectangular hole in input depth, to be filled in by depth2depth module
+            h_start, h_stop = (height // 8) * 2, (height // 8) * 6
+            w_start, w_stop = (width // 8) * 5, (width // 8) * 7
 
             # Make half the image zero for testing depth2depth
-            np_image[h_start:h_stop, w_start:w_stop] = 0
+            np_image[h_start:h_stop, w_start:w_stop] = 1e-3  # 0
 
             # Convert to PIL
             array_buffer = np_image.tobytes()
@@ -105,8 +107,9 @@ def main():
             img.frombytes(array_buffer, 'raw', 'I;16')
 
             # Resize and save
-            img = img.resize((args.imsize, args.imsize), Image.ANTIALIAS)
+            img = img.resize((args.width, args.height), Image.ANTIALIAS)
             img.save(os.path.join(depth_imgs, name))
+
     print('total ', len([name for name in os.listdir(depth_imgs) if os.path.isfile(
         os.path.join(depth_imgs, name))]), ' converted from exr to png')
 

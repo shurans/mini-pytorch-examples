@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
 
-import models.unet_normals as unet
+from models import unet_normals as unet
 import dataloader
 from loss_functions import loss_fn_cosine, loss_fn_radians
 
@@ -61,35 +61,47 @@ if not os.path.isdir(DIR_RESULTS_SYNTHETIC):
     os.makedirs(DIR_RESULTS_SYNTHETIC)
 
 ###################### DataLoader #############################
-# Make new dataloaders for each synthetic dataset
+print(colored('Will Run inference on these Test sets:', 'green'))
+# Make new pytorch datasets for each synthetic dataset
 db_test_list_synthetic = []
 for dataset in config.eval.datasetsSynthetic:
-    dataset = dataloader.SurfaceNormalsDataset(
-        input_dir=dataset.images,
-        label_dir=dataset.labels,
-        transform=None,
-        input_only=None
-    )
-    db_test_list_synthetic.append(dataset)
+    print('Creating Synthetic Images dataset from: "{}"'.format(dataset.images))
+    if dataset.images:
+        dataset = dataloader.SurfaceNormalsDataset(
+            input_dir=dataset.images,
+            label_dir=dataset.labels,
+            transform=None,
+            input_only=None
+        )
+        db_test_list_synthetic.append(dataset)
 
-# Make new dataloaders for each real dataset
+# Make new pytorch datasets for each real dataset
 db_test_list_real = []
 for dataset in config.eval.datasetsReal:
-    dataset = dataloader.SurfaceNormalsRealImagesDataset(
-        input_dir=dataset.images,
-        imgHeight=config_checkpoint.train.imgHeight,
-        imgWidth=config_checkpoint.train.imgWidth
-    )
-    db_test_list_real.append(dataset)
+    print('Creating Real Images dataset from: "{}"'.format(dataset.images))
+    if dataset.images:
+        dataset = dataloader.SurfaceNormalsRealImagesDataset(
+            input_dir=dataset.images,
+            imgHeight=config_checkpoint.train.imgHeight,
+            imgWidth=config_checkpoint.train.imgWidth
+        )
+        db_test_list_real.append(dataset)
 
+# Create pytorch dataloaders from datasets
+dataloaders_dict = {}
+if db_test_list_synthetic:
+    db_test_synthetic = torch.utils.data.ConcatDataset(db_test_list_synthetic)
+    testLoader_synthetic = DataLoader(db_test_synthetic, batch_size=config.eval.batchSize,
+                                      shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
+    dataloaders_dict.update({'synthetic': testLoader_synthetic})
 
-db_test_synthetic = torch.utils.data.ConcatDataset(db_test_list_synthetic)
-db_test_real = torch.utils.data.ConcatDataset(db_test_list_real)
+if db_test_list_real:
+    db_test_real = torch.utils.data.ConcatDataset(db_test_list_real)
+    testLoader_real = DataLoader(db_test_real, batch_size=config.eval.batchSize,
+                                 shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
+    dataloaders_dict.update({'real': testLoader_real})
 
-testLoader_synthetic = DataLoader(db_test_synthetic, batch_size=config.eval.batchSize,
-                                  shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
-testLoader_real = DataLoader(db_test_real, batch_size=config.eval.batchSize,
-                             shuffle=False, num_workers=config.eval.numWorkers, drop_last=False)
+assert(len(dataloaders_dict) > 0), 'No valid datasets given in config.yaml to run inference on!'
 
 
 ###################### ModelBuilder #############################
@@ -99,7 +111,6 @@ model.load_state_dict(CHECKPOINT['model_state_dict'])
 
 # Enable Multi-GPU training
 if torch.cuda.device_count() > 1:
-    print("Let's use", torch.cuda.device_count(), "GPUs!")
     # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
     model = nn.DataParallel(model)
 
@@ -120,15 +131,13 @@ else:
 ### Run Validation and Test Set ###
 print('\nInference - Surface Normal Estimation')
 print('-' * 50 + '\n')
-print('Running inference on Test sets at:\n    {}\n    {}\n'.format(config.eval.datasetsReal,
-                                                                    config.eval.datasetsSynthetic))
-print('Results will be saved to:\n    {}\n    {}\n'.format(config.eval.resultsDirReal,
-                                                           config.eval.resultsDirSynthetic))
-
-dataloaders_dict = {'real': testLoader_real, 'synthetic': testLoader_synthetic}
+print("Let's use", torch.cuda.device_count(), "GPUs!")
+print('Batch Size: {}'.format(config.eval.batchSize))
+print(colored('Results will be saved to:\n    {}\n    {}\n'.format(config.eval.resultsDirReal,
+                                                                   config.eval.resultsDirSynthetic), 'green'))
 
 for key in dataloaders_dict:
-    print(key + ':')
+    print('Running inference on {} dataset:'.format(key))
     print('=' * 30)
 
     testLoader = dataloaders_dict[key]
@@ -189,7 +198,7 @@ for key in dataloaders_dict:
             imageio.imwrite(result_path, numpy_grid)
 
             # Write Predicted Surface Normal as hdf5 file for depth2depth
-            # NOTE: The hdf5 expected shape is (3, height, width), float32
+            # NOTE: The hdf5 expected shape is (3, height, width), dtype float32
             with h5py.File(result_hdf5_path, "w") as f:
                 dset = f.create_dataset('/result', data=output.numpy())
 

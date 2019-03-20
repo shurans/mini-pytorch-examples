@@ -10,11 +10,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
-
 from imgaug import augmenters as iaa
 import imgaug as ia
 
-from utils.utils import exr_loader, exr_saver
+from utils import utils
 
 
 class SurfaceNormalsDataset(Dataset):
@@ -81,7 +80,7 @@ class SurfaceNormalsDataset(Dataset):
         _img = tf(_img)
 
         # Open labels
-        _label = exr_loader(label_path, ndim=3)
+        _label = utils.exr_loader(label_path, ndim=3)
         _label = torch.from_numpy(_label)
 
         # Apply image augmentations and convert to Tensor
@@ -114,8 +113,8 @@ class SurfaceNormalsDataset(Dataset):
             ValueError: Number of images and labels do not match
         '''
 
-        assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
-        assert os.path.isdir(labels_dir), 'This directory does not exist: %s' % (labels_dir)
+        assert os.path.isdir(images_dir), 'Dataloader given images directory that does not exist: "%s"' % (images_dir)
+        assert os.path.isdir(labels_dir), 'Dataloader given labels directory that does not exist: "%s"' % (labels_dir)
 
         imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
         labelSearchStr = os.path.join(labels_dir, '*' + self._extension_label)
@@ -196,7 +195,7 @@ class SurfaceNormalsRealImagesDataset(Dataset):
     def _create_lists_filenames(self, images_dir):
         '''Create a list of filenames of images in dataset dir.
         '''
-        assert os.path.isdir(images_dir), 'This directory does not exist: %s' % (images_dir)
+        assert os.path.isdir(images_dir), 'Dataloader given images directory that does not exist: "%s"' % (images_dir)
 
         imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
         imagepaths = sorted(glob.glob(imageSearchStr))

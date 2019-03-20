@@ -8,7 +8,8 @@ import torch
 import matplotlib.pyplot as plt
 import random
 import argparse
-import OpenEXR, Imath
+import OpenEXR
+import Imath
 from skimage.transform import resize
 
 
@@ -24,7 +25,7 @@ class Dataset():
         self.read_file_list()
 
         self.ignore_label = 255
-        self.ordered_train_labels = np.append( [self.ignore_label] , np.asarray( range(13) ))
+        self.ordered_train_labels = np.append([self.ignore_label], np.asarray(range(13)))
 
         if self.doshuffle:
             self.shuffle()
@@ -32,7 +33,7 @@ class Dataset():
     def read_file_list(self):
         with open(self.file_list, 'r') as f:
             reader = csv.reader(f)
-            self.datalist = list(reader)
+            self.datalist = sorted(list(reader))
 
     def __len__(self):
         return len(self.datalist)
@@ -46,21 +47,21 @@ class Dataset():
 
     def transformImage(self, im):
         transform_list = []
-        transform_list.append(transforms.Resize(self.imsize, interpolation = Image.BILINEAR))
+        transform_list.append(transforms.Resize(self.imsize, interpolation=Image.BILINEAR))
         transform_list.append(transforms.ToTensor())
-        transform_list.append(transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])) #[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+        # [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+        transform_list.append(transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]))
         tf = transforms.Compose(transform_list)
         im = tf(im)
         return im
 
     def transformLabel(self, label):
         transform_list = []
-        transform_list.append(transforms.Resize(self.imsize, interpolation = Image.NEAREST))
+        transform_list.append(transforms.Resize(self.imsize, interpolation=Image.NEAREST))
         transform_list.append(transforms.ToTensor())
         tf = transforms.Compose(transform_list)
         label = tf(label)
         return label
-
 
     def get_batch(self):
         # this function get image and segmentation mask
@@ -72,7 +73,7 @@ class Dataset():
             if self.currIdx >= len(self.datalist):
                 self.currIdx = 0
                 if self.doshuffle:
-                   self.shuffle()
+                    self.shuffle()
 
             im_path = self.dataroot + self.datalist[self.currIdx][0]
             label_path = self.dataroot + self.datalist[self.currIdx][1]
@@ -81,7 +82,6 @@ class Dataset():
             im = Image.open(im_path)
             im = self.transformImage(im)
             im = im.unsqueeze(0)
-
 
             # Open outlines
             label = Image.open(label_path)
@@ -96,7 +96,7 @@ class Dataset():
             label = label.unsqueeze(0).long()
 
             # Create batches out of data
-            im_batch=torch.cat((im_batch, im), 0)
-            label_batch = torch.cat((label_batch,label),0)
+            im_batch = torch.cat((im_batch, im), 0)
+            label_batch = torch.cat((label_batch, label), 0)
 
         return im_batch, label_batch
