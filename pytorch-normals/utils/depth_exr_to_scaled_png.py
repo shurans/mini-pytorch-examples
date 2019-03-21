@@ -99,7 +99,7 @@ def main():
             w_start, w_stop = (width // 8) * 5, (width // 8) * 7
 
             # Make half the image zero for testing depth2depth
-            np_image[h_start:h_stop, w_start:w_stop] = 1e-3  # 0
+            np_image[h_start:h_stop, w_start:w_stop] = 0.0
 
             # Convert to PIL
             array_buffer = np_image.tobytes()

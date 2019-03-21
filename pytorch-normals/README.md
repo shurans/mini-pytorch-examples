@@ -88,6 +88,14 @@ modified in the dictionaries within the `data_processing_script.py` script.
 Ubuntu 16.04 and Python3 is used for the code. Install the dependencies below. If using Conda to manage virtual environments,
 conda install commands are provided. Otherwise, install with pip or from source.
 
+### Misc
+
+```bash
+pip install pathlib
+pip install imageio #Alternate: conda install -c conda-forge imageio
+pip install termcolor
+```
+
 ### OpenEXR
 
 OpenEXR is required to read in the files in .exr format. Install [OpenEXR](https://github.com/openexr/openexr) libs and
@@ -107,7 +115,7 @@ These are the commands not to be run:
 # DO NOT INSTALL THIS
 # conda install -c conda-forge openexr
 # conda install -c conda-forge ilmbase
-``` 
+```
 
 ### TensorboardX
 
@@ -134,7 +142,7 @@ $ pip install opencv-python
 $ pip install git+https://github.com/aleju/imgaug
 ```
 
-### LibRealSense  
+### LibRealSense
 
 [LibRealSense](https://github.com/IntelRealSense/librealsense) is required to stream and capture images from Intel Realsense D415/D435 stereo cameras.  
 Please check the [installation guide](https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md) to install from binaries, or compile from source.
@@ -171,11 +179,4 @@ preserves dict ordering. Used for pretty prints of config file.
 ```bash
 # Install oyaml
 $ pip install oyaml
-```
-
-### Others
-
-```bash
-# Misc Packages
-$ pip install termcolor
 ```

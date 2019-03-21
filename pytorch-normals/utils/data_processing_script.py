@@ -69,6 +69,9 @@ SUBFOLDER_MAP_SYNTHETIC = {
 
     'outlines-rgb': {'postfix': '-outlineSegmentationRgb.png',
                      'folder-name': 'outlines/rgb-visualizations'},
+
+    'depth-files-rectified': {'postfix': '-depth.exr',
+                              'folder-name': 'depth-imgs-rectified'},
 }
 
 # The various subfolders into which the real images are to be organized into.
@@ -104,181 +107,6 @@ SUBFOLDER_MAP_RESIZED_REAL = {
     'preprocessed-rgb-imgs': {'postfix': '-rgb.png',
                               'folder-name': 'preprocessed-rgb-imgs'},
 }
-
-################################### CREATE OUTLINES #############################
-def label_to_rgb(label):
-    '''Output RGB visualizations of the labels (outlines)
-    Assumes labels have int values and max number of classes = 3
-
-    Args:
-        label (numpy.ndarray): Shape (height, width). Each pixel contains an int with value of class that it belongs to.
-
-    Returns:
-        numpy.ndarray: Shape (height, width, 3): RGB representation of the labels
-    '''
-    rgbArray = np.zeros((label.shape[0], label.shape[1], 3), dtype=np.uint8)
-    rgbArray[:, :, 0][label == 0] = 255
-    rgbArray[:, :, 1][label == 1] = 255
-    rgbArray[:, :, 2][label == 2] = 255
-
-    return rgbArray
-
-
-def outline_from_depth(depth_img_orig):
-    '''create outline from depth image
-    
-    Args:
-        depth_img_orig (numpy.ndarray): Shape (height, width).
-
-    Returns:
-        numpy.ndarray: Shape (height, width): outlines from depth image
-    '''
-    kernel_size = 9
-    threshold = 10
-    max_depth_to_object = 2.5
-
-    # Apply Laplacian filters for edge detection for depth images
-    depth_img_blur = cv2.GaussianBlur(depth_img_orig, (5, 5), 0)
-
-    # Make all depth values greater than 2.5m as 0 (for masking edge matrix)
-    depth_img_mask = depth_img_blur.copy()
-    depth_img_mask[depth_img_mask > 2.5] = 0
-    depth_img_mask[depth_img_mask > 0] = 1
-
-    # Apply Laplacian filters for edge detection
-    # Laplacian Parameters
-    edges_lap = cv2.Laplacian(depth_img_orig, cv2.CV_64F, ksize=kernel_size, borderType=0)
-    edges_lap = (np.absolute(edges_lap).astype(np.uint8))
-
-    edges_lap_binary = np.zeros(edges_lap.shape, dtype=np.uint8)
-    edges_lap_binary[edges_lap > threshold] = 255
-    edges_lap_binary[depth_img_orig > max_depth_to_object] = 0
-
-    return edges_lap_binary
-
-
-def outline_from_normal(surface_normal):
-    ''' surface normal shape = 3 * H * W
-
-        create outline from the gradient of the normals image. Gradient is the region of the image where there is a change in value
-    
-    Args:
-        surface_normal (numpy.ndarray): Shape (height, width).
-
-    Returns:
-        numpy.ndarray: Shape (height, width): outlines from depth image
-    '''
-    surface_normal = (surface_normal + 1) / 2  # convert to [0,1] range
-
-    surface_normal_rgb16 = (surface_normal * 65535).astype(np.uint16)
-    # surface_normal_rgb8 = (surface_normal * 255).astype(np.uint8).transpose((1,2,0))
-
-    # Take each channel of RGB image one by one, apply gradient and combine
-    sobelxy_list = []
-    for surface_normal_gray in surface_normal_rgb16:
-        # Sobel Filter Params
-        # These params were chosen using trial and error.
-        # NOTE!!!! The max value of sobel output increases exponentially with increase in kernel size.
-        # Print the min/max values of array below to get an idea of the range of values in Sobel output.
-        kernel_size = 5
-        threshold = 60000
-
-        # Apply Sobel Filter
-        sobelx = cv2.Sobel(surface_normal_gray, cv2.CV_32F, 1, 0, ksize=kernel_size)
-        sobely = cv2.Sobel(surface_normal_gray, cv2.CV_32F, 0, 1, ksize=kernel_size)
-
-        sobelx = np.abs(sobelx)
-        sobely = np.abs(sobely)
-
-        # Convert to binary
-        sobelx_binary = np.full(sobelx.shape, False, dtype=bool)
-        sobelx_binary[sobelx >= threshold] = True
-
-        sobely_binary = np.full(sobely.shape, False, dtype=bool)
-        sobely_binary[sobely >= threshold] = True
-
-        sobelxy_binary = np.logical_or(sobelx_binary, sobely_binary)
-        sobelxy_list.append(sobelxy_binary)
-
-    sobelxy_binary3d = np.array(sobelxy_list).transpose((1, 2, 0))
-    sobelxy_binary3d = sobelxy_binary3d.astype(np.uint8) * 255
-
-    sobelxy_binary = np.zeros((surface_normal_rgb16.shape[1], surface_normal_rgb16.shape[2]))
-    for channel in sobelxy_list:
-        sobelxy_binary[channel > 0] = 255
-
-    # print('normal nonzero:', np.sum((edges_sobel_binary > 0) & (edges_sobel_binary < 255)))
-    return sobelxy_binary
-
-
-def create_outlines(depth_file, camera_normal_file):
-    ''' Creates a combined outline from depth and normals images. 
-        Places where Depth and Normal outlines overlap, priority given to depth pixels
-    
-        surface normal shape = 3 * H * W
-
-     Args:
-        depth_file (str) : path/to/depth_file
-        camera_normal_file (str): path/to/camera_normals_file
-
-     Returns:
-        bool: False if file exists and it skipped it. True if it created the outlines file
-    '''
-
-
-    #  Output paths and filenames
-    outlines_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
-                                          SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'])
-    outlines_rgb_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
-                                              SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['folder-name'])
-
-    prefix = os.path.basename(depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
-    output_outlines_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix'])
-    outlines_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['postfix'])
-    output_outlines_file = os.path.join(outlines_dir_path, output_outlines_filename)
-    outlines_rgb_file = os.path.join(outlines_rgb_dir_path, outlines_rgb_filename)
-
-    # If outlines file already exists, skip
-    if Path(output_outlines_file).is_file():
-        print('Skipping {}, it already exists'.format(os.path.join(
-            SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'], os.path.basename(output_outlines_file))))
-        return False
-
-    # load depth img and create outline
-    depth_img_orig = exr_loader(depth_file, ndim=1)
-    depth_edges = outline_from_depth(depth_img_orig)
-
-
-    # Load RGB image, convert to outlines and  resize
-    surface_normal = exr_loader(camera_normal_file)
-    normals_edges = outline_from_normal(surface_normal)
-    
-    
-    # Depth and Normal outlines should not overlap. Priority given to depth.
-    normals_edges[depth_edges == 255] = 0
-
-    # modified edges and create mask
-    assert(depth_edges.shape == normals_edges.shape), " depth and cameral normal shapes are different"
-
-    height,width = depth_edges.shape
-    output = np.zeros((height, width), 'uint8')
-    output[normals_edges == 255] = 2
-    output[depth_edges == 255] = 1
-
-    # Remove gradient bars from the top and bottom of img
-    num_of_rows_to_delete = 2
-    output[:num_of_rows_to_delete, :] = 0
-    output[-num_of_rows_to_delete:, :] = 0
-
-    img = Image.fromarray(output, 'L')
-    img.save(output_outlines_file)
-
-    output_color = label_to_rgb(output)
-
-    img = Image.fromarray(output_color, 'RGB')
-    img.save(outlines_rgb_file)
-
-    return True
 
 
 ################################ RENAME AND MOVE ################################
@@ -444,7 +272,7 @@ def normal_to_rgb(normals_to_convert):
     return camera_normal_rgb
 
 
-def preprocess_world_to_cam(world_normals, json_files):
+def preprocess_world_to_camera_normals(world_normals, json_files):
     '''Will convert normals from World co-ords to Camera co-ords
     It will create a folder to store converted files. A quaternion for conversion of normal from world to camera
     co-ords is read from the json file and is multiplied with each normal in source file.
@@ -494,19 +322,311 @@ def preprocess_world_to_cam(world_normals, json_files):
 
     # Convert Normals to Camera Space
     camera_normal = world_to_camera_normals(inverted_camera_quaternation, exr_x, exr_y, exr_z)
-    # camera_normal2 = camera_normal.copy()
 
-    # Output Converted EXR Files as numpy data
-    # exr_arr = np.array(camera_normal).transpose((2, 0, 1))
-    # np.save(output_camera_normal_file, exr_arr)
-
-    # Output Converted EXR Files
+    # Output Converted Surface Normal Files
     exr_arr = camera_normal.transpose((2, 0, 1))
     exr_saver(output_camera_normal_file, exr_arr, ndim=3)
 
-    # Output converted Normals as RGB images
+    # Output Converted Normals as RGB images for visualization
     camera_normal_rgb = normal_to_rgb(camera_normal)
     imageio.imwrite(camera_normal_rgb_file, camera_normal_rgb)
+
+    return True
+
+
+################################### CREATE OUTLINES #############################
+def label_to_rgb(label):
+    '''Output RGB visualizations of the outlines' labels
+
+    The labels of outlines have 3 classes: Background, Depth Outlines, Surface Normal Outlines which are mapped to
+    Red, Green and Blue respectively.
+
+    Args:
+        label (numpy.ndarray): Shape: (height, width). Each pixel contains an int with value of class.
+
+    Returns:
+        numpy.ndarray: Shape (height, width, 3): RGB representation of the labels
+    '''
+    rgbArray = np.zeros((label.shape[0], label.shape[1], 3), dtype=np.uint8)
+    rgbArray[:, :, 0][label == 0] = 255
+    rgbArray[:, :, 1][label == 1] = 255
+    rgbArray[:, :, 2][label == 2] = 255
+
+    return rgbArray
+
+
+def outlines_from_depth(depth_img_orig):
+    '''Create outlines from the depth image
+
+    This is used to create a binary mask of the outlines of depth. Outlines refers to areas where there is a sudden
+    large change in value of depth, i.e., the gradient is large. Example: the borders of an object against the background
+    will have large gradient as depth value changes from the object to that of background.
+
+    We get the gradient of the depth via a Laplacian filter with manually chosen threshold values. Another manually
+    chosen threshold on gradient is applied to create a mask.
+
+    Args:
+        depth_img_orig (numpy.ndarray): Shape (height, width), dtype=float32. The depth image where each pixel
+            contains the distance to the object in meters.
+
+    Returns:
+        numpy.ndarray: Shape (height, width), dtype=uint8: Outlines from depth image
+    '''
+    # Laplacian Filter Parameters
+    kernel_size = 9
+    threshold = 10
+    max_depth_to_object = 2.5
+
+    # Apply Laplacian filters for edge detection
+    depth_img_blur = cv2.GaussianBlur(depth_img_orig, (5, 5), 0)
+    edges_lap = cv2.Laplacian(depth_img_blur, cv2.CV_64F, ksize=kernel_size, borderType=0)
+    edges_lap = (np.absolute(edges_lap).astype(np.uint8))
+
+    edges_lap_binary = np.zeros(edges_lap.shape, dtype=np.uint8)
+    edges_lap_binary[edges_lap > threshold] = 255
+
+    # Make all depth values greater than 2.5m as 0
+    # This is done because the gradient increases exponentially on far away objects. So pixels near the horizon
+    # will create a large zone of depth edges, but we don't want those. We want only edges of objects seen in the scene.
+    edges_lap_binary[depth_img_orig > max_depth_to_object] = 0
+
+    return edges_lap_binary
+
+
+def outline_from_normal(surface_normal):
+    '''Create outlines from the gradients of surface normals
+
+    This is used to create a binary mask of the outlines of surface normals. Outlines refers to regions where the
+    gradient of surface normals is large, i.e., there is a large change in value.
+    We take the gradient of the surface normals along each axis (x, y, z) via a Sobel filter with manually chosen
+    threshold values to get the mask. The masks for each channel are combined to generate the final outlines output.
+
+    Args:
+        surface_normal (numpy.ndarray): Shape (3, height, width), dtype=float32. Each pixel contains the surface normal.
+                                        The RGB channels are mapped to (x,y,z) axis and contain a value from [-1, 1].
+                                        Each surface normal should be a unit vector, i.e., they are normalized 
+                                        (sqroot(x^2 + y^2 + z^2) = 1)
+
+    Returns:
+        numpy.ndarray: Shape (height, width), dtype=uint8: Mask of outlines from surface normals.
+    '''
+
+    # Convert normals into a 16bit RGB image. This is for getting finer outlines.
+    surface_normal = (surface_normal + 1) / 2
+    surface_normal_rgb16 = (surface_normal * 65535).astype(np.uint16)
+
+    # Take each channel of RGB image one by one, apply gradient and combine
+    sobelxy_list = []
+    for surface_normal_gray in surface_normal_rgb16:
+        # Sobel Filter Params
+        # These params were chosen using trial and error.
+        # NOTE!!! The max value of sobel output increases exponentially with increase in kernel size.
+        # Print the min/max values of array below to get an idea of the range of values in Sobel output.
+        kernel_size = 5
+        threshold = 60000
+
+        # Apply Sobel Filter
+        sobelx = cv2.Sobel(surface_normal_gray, cv2.CV_32F, 1, 0, ksize=kernel_size)
+        sobely = cv2.Sobel(surface_normal_gray, cv2.CV_32F, 0, 1, ksize=kernel_size)
+
+        sobelx = np.abs(sobelx)
+        sobely = np.abs(sobely)
+
+        # Create Boolean Mask
+        sobelx_binary = np.full(sobelx.shape, False, dtype=bool)
+        sobelx_binary[sobelx >= threshold] = True
+
+        sobely_binary = np.full(sobely.shape, False, dtype=bool)
+        sobely_binary[sobely >= threshold] = True
+
+        sobel_binary = np.logical_or(sobelx_binary, sobely_binary)
+        sobelxy_list.append(sobel_binary)
+
+    sobelxy_binary = np.zeros((surface_normal_rgb16.shape[1], surface_normal_rgb16.shape[2]), dtype=np.uint8)
+    for channel in sobelxy_list:
+        sobelxy_binary[channel] = 255
+
+    return sobelxy_binary
+
+
+def create_outlines_training_data(path_depth_file, path_camera_normal_file):
+    '''Creates training data for the Outlines Prediction Model
+
+    It creates outlines from the depth image and surface normal image.
+    Places where Depth and Normal outlines overlap, priority is given to depth pixels.
+
+    Expects the depth image to be in .exr format, with dtype=float32 where each pixel represents the depth in meters
+    Expects the surfacte normal image to be in .exr format, with dtype=float32. Each pixel contains the
+    surface normal, RGB channels mapped to XYZ axes.
+
+     Args:
+        path_depth_file (str): Path to the depth image.
+        path_camera_normal_file (str): Path to the surface normals image.
+
+     Returns:
+        bool: False if file exists and it skipped it. True if it created the outlines file
+    '''
+
+    #  Output paths and filenames
+    outlines_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
+                                     SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'])
+    outlines_rgb_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
+                                         SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['folder-name'])
+
+    prefix = os.path.basename(path_depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
+    output_outlines_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix'])
+    outlines_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['postfix'])
+    output_outlines_file = os.path.join(outlines_dir_path, output_outlines_filename)
+    outlines_rgb_file = os.path.join(outlines_rgb_dir_path, outlines_rgb_filename)
+
+    # If outlines file already exists, skip
+    if Path(output_outlines_file).is_file():
+        print('Skipping {}, it already exists'.format(os.path.join(
+            SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'], os.path.basename(output_outlines_file))))
+        return False
+
+    # Create outlines from depth image
+    depth_img_orig = exr_loader(path_depth_file, ndim=1)
+    depth_edges = outlines_from_depth(depth_img_orig)
+
+    # Create outlines from surface normals
+    surface_normal = exr_loader(path_camera_normal_file)
+    normals_edges = outline_from_normal(surface_normal)
+
+    # Depth and Normal outlines should not overlap. Priority given to depth.
+    normals_edges[depth_edges == 255] = 0
+
+    # Modified edges and create mask
+    assert(depth_edges.shape == normals_edges.shape), " depth and cameral normal shapes are different"
+
+    height, width = depth_edges.shape
+    output = np.zeros((height, width), 'uint8')
+    output[normals_edges == 255] = 2
+    output[depth_edges == 255] = 1
+
+    # Removes extraneous outlines near the border of the image
+    # In our outlines image, the borders of the image contain depth and/or surface normal outlines, where there are none
+    # The cause is unknown, we remove them by setting all pixels near border to background class.
+    num_of_rows_to_delete_y_axis = 6
+    output[:num_of_rows_to_delete_y_axis, :] = 0
+    output[-num_of_rows_to_delete_y_axis:, :] = 0
+
+    num_of_rows_to_delete_x_axis = 6
+    output[:, :num_of_rows_to_delete_x_axis] = 0
+    output[:, -num_of_rows_to_delete_x_axis:] = 0
+
+    # Save the outlines
+    imageio.imwrite(output_outlines_file, output)
+
+    output_color = label_to_rgb(output)
+    imageio.imwrite(outlines_rgb_file, output_color)
+
+    return True
+
+
+###############################  CALCULATE RECTIFIED DEPTH ###########################
+def calculate_cos_matrix(depth_img_path, fov_y=0.7428, fov_x=1.2112):
+    '''Calculates the cos of the angle between each pixel, camera center and center of image
+
+    First, it will take the angle in the x-axis from image center to each pixel, take the cos of each angle and store
+    in a matrix. Then it will do the same, except for angles in y-axis.
+    These cos matrices are used to recitify the depth image.
+
+     Args:
+        depth_img_path (str) : Path to the depth image in exr format
+        fov_y (float): FOV (Feild of View) of the camera along height of the image in radians, default=0.7428
+        fov_x (float): FOV (Feild of View) of the camera along width of the image in radians, default=1.2112
+
+     Returns:
+        cos_matrix_y (numpy.ndarray): Matrix of cos of angle in the y-axis from image center to each pixel in
+                                      the depth image.
+                                      Shape: (height, width)
+        cos_matrix_x (numpy.ndarray): Matrix of cos of angle in the x-axis from image center to each pixel in
+                                      the depth image.
+                                      Shape: (height, width)
+
+    '''
+    depth_img = exr_loader(depth_img_path, ndim=1)
+    height, width = depth_img.shape
+    center_y, center_x = (height / 2), (width / 2)
+
+    angle_per_pixel_along_y = fov_y / height  # angle per pixel along height of the image
+    angle_per_pixel_along_x = fov_x / width  # angle per pixel along width of the image
+
+    # create two static arrays to calculate focal angles along x and y axis
+    cos_matrix_y = np.zeros((height, width), 'float32')
+    cos_matrix_x = np.zeros((height, width), 'float32')
+
+    # calculate cos matrix along y - axis
+    for i in range(height):
+        for j in range(width):
+            angle = abs(center_y - (i)) * angle_per_pixel_along_y
+            cos_value = np.cos(angle)
+            cos_matrix_y[i][j] = cos_value
+
+    # calculate cos matrix along x-axis
+    for i in range(width):
+        for j in range(height):
+            angle = abs(center_x - (i)) * angle_per_pixel_along_x
+            cos_value = np.cos(angle)
+            cos_matrix_x[j][i] = cos_value
+
+    return cos_matrix_y, cos_matrix_x
+
+
+def create_rectified_depth_image(depth_file, cos_matrix_y, cos_matrix_x):
+    '''Creates and saves a rectified depth image from the rendered depth image
+
+    The rendered depth image contains depth of each pixel from the object to the camera center/lens. It is obtained
+    through techniques similar to ray tracing.
+
+    However, our algorithms (like creation of point clouds) expect the depth image to be in the same format as output
+    by stereo depth cameras. Stereo cameras output a depth image where the depth is calculated from the object to
+    camera plane (the plane is perpendicular to axis coming out of camera lens). Hence, if a flat wall is kept in front
+    of the camera perpendicular to it, the depth of each pixel on the wall contains the same depth value.
+    This is refered to as the rectified depth image.
+
+                   /                                   -----
+                  /
+                c---                                  c-----
+                  \
+                   \                                   -----
+          Rendered depth image                  Rectified Depth Image
+
+     Args:
+        depth_file (str) : Path to the rendered depth image in .exr format with dtype=float32. Each pixel contains
+                           depth from pixel to camera center/lens.
+        cos_matrix_y (numpy.ndarray): Shape (height, width) Matrix of cos of angle in the y-axis from image center
+                                      to each pixel in depth image.
+        cos_matrix_x (numpy.ndarray): Shape (height, width) Matrix of cos of angle in the x-axis from image center
+                                      to each pixel in depth image.
+
+     Returns:
+        bool: False if file exists and it skipped it. True if it created the depth rectified file
+    '''
+
+    #  Output paths and filenames
+    outlines_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
+                                     SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'])
+
+    prefix = os.path.basename(depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
+    output_depth_rectified_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['postfix'])
+    output_depth_rectified_file = os.path.join(outlines_dir_path, output_depth_rectified_filename)
+
+    # If outlines file already exists, skip
+    if Path(output_depth_rectified_file).is_file():
+        print('Skipping {}, it already exists'.format(os.path.join(
+              SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'],
+              os.path.basename(output_depth_rectified_file))))
+        return False
+
+    depth_img = exr_loader(depth_file, ndim=1)
+
+    # calculate modified depth/pixel in mtrs
+    output = np.multiply(np.multiply(depth_img, cos_matrix_y), cos_matrix_x)
+    output = np.stack((output, output, output), axis=0)
+
+    exr_saver(output_depth_rectified_file, output, ndim=3)
 
     return True
 
@@ -713,6 +833,7 @@ def main():
         - Stage 2: Generate Training data :
                     - Transform surface normals from World co-ordinates to Camera co-ordinates.
                     - Create Outlines from depth and surface normals
+                    - Rectify the rendered depth image
         - Stage 3: Resize the files required for training models to a smaller size for ease of loading data.
 
     Note: In a file named '000000020-rgb.jpg' its prefix is '000000020' and its postfix '-rgb.jpg'
@@ -731,8 +852,13 @@ def main():
     parser.add_argument('--height', default=288, type=int, help='The size to which input will be resized to')
     parser.add_argument('--width', default=512, type=int, help='The size to which input will be resized to')
     parser.add_argument('--test_set', action='store_true',
-                        help='Whether we\'re processing a test set, which has only rgb images, and optionally depth images.\
+                        help='Whether we\'re processing a test set, which has only rgb images, and optionally \
+                              depth images.\
                               If this flag is passed, only rgb/depth images are processed, all others are ignored.')
+    parser.add_argument('--fov_y', default=0.7428, type=float,
+                        help='Vertical FOV of camera in radians (Field of View along the height of image)')
+    parser.add_argument('--fov_x', default=1.2112, type=float,
+                        help='Horizontal FOV of camera in radians (Field of View along the width of image)')
     args = parser.parse_args()
 
     global SUBFOLDER_MAP_SYNTHETIC
@@ -798,7 +924,7 @@ def main():
             # Process the list of files, but split the work across the process pool to use all CPUs!
             print("\n\nConverting World co-ord Normals to Camera co-ord Normals...Check your CPU usage!!")
             num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(preprocess_world_to_cam, world_normals_files_list, json_files_list):
+            for converted_file in executor.map(preprocess_world_to_camera_normals, world_normals_files_list, json_files_list):
                 if converted_file is True:
                     num_converted += 1
                 else:
@@ -807,9 +933,8 @@ def main():
             print(colored('\n  Converted {} world-normals'.format(num_converted), 'green'))
             print(colored('  Skipped {} world-normals'.format(num_skipped), 'red'))
 
-
-        
-            # creating outlines from depth and normals
+        # creating outlines from depth and normals
+        with concurrent.futures.ProcessPoolExecutor() as executor:
 
             # Get a list of files to process
             depth_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['depth-files']['folder-name'])
@@ -824,7 +949,7 @@ def main():
             # Process the list of files, but split the work across the process pool to use all CPUs!
             print("\n\nCreating outlines from depth and normals...Check your CPU usage!!")
             num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(create_outlines, depth_files_list, camera_normals_list):
+            for converted_file in executor.map(create_outlines_training_data, depth_files_list, camera_normals_list):
                 if converted_file is True:
                     num_converted += 1
                 else:
@@ -832,6 +957,31 @@ def main():
 
             print(colored('\n  created {} outlines'.format(num_converted), 'green'))
             print(colored('  Skipped {} outlines from creation'.format(num_skipped), 'red'))
+
+        # calculating rectified depth
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Get a list of files to process
+            depth_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['depth-files']['folder-name'])
+            depth_files_list = sorted(glob.glob(
+                os.path.join(depth_files_dir, "*" +
+                             SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])))
+
+            # claculating cos matrices
+            depth_img_file_path = depth_files_list[0]
+            cos_matrix_y, cos_matrix_x = calculate_cos_matrix(depth_img_file_path, args.fov_y, args.fov_x)
+
+            # Process the list of files, but split the work across the process pool to use all CPUs!
+            print("\n\nRectifiing depth images...Check your CPU usage!!")
+            num_converted, num_skipped = 0, 0
+            for converted_file in executor.map(create_rectified_depth_image, depth_files_list,
+                                               cos_matrix_y, cos_matrix_x):
+                if converted_file is True:
+                    num_converted += 1
+                else:
+                    num_skipped += 1
+
+            print(colored('\n  rectified {} depth images'.format(num_converted), 'green'))
+            print(colored('  Skipped {} from rectifing'.format(num_skipped), 'red'))
 
     ### STAGE 3: Preprocess the data required for training ###
     # Create dir to store training data
@@ -904,4 +1054,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
