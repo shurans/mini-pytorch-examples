@@ -166,6 +166,10 @@ else:
 
 ###################### Train Model #############################
 # Set total iter_num (number of batches seen by model, used for logging)
+total_iter_num = 0
+START_EPOCH = 0
+END_EPOCH = config.train.numEpochs
+
 if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint):
     if 'model_state_dict' in CHECKPOINT:
         # TODO: remove this second check for 'model_state_dict' soon. Kept for ensuring backcompatibility
@@ -173,11 +177,8 @@ if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint
         START_EPOCH = CHECKPOINT['epoch'] + 1
         END_EPOCH = CHECKPOINT['epoch'] + config.train.numEpochs
     else:
-        print(colored('Could not load epoch and total iter nums from checkpoint, they do not exist in checkpoint',
-                      'red'))
-        total_iter_num = 0
-        START_EPOCH = 0
-        END_EPOCH = config.train.numEpochs
+        print(colored('Could not load epoch and total iter nums from checkpoint, they do not exist in checkpoint.\
+                       Starting from epoch num 0', 'red'))
 
 for epoch in range(START_EPOCH, END_EPOCH):
     print('Epoch {}/{}'.format(epoch, END_EPOCH - 1))
