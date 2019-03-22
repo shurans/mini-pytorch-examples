@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 
 import os
-import warnings
 from termcolor import colored
 import fnmatch
 import argparse
-import numpy as np
-import OpenEXR
-import Imath
 import json
 import shutil
 import glob
 import concurrent.futures
 import time
+import tqdm
 
+import OpenEXR
+import Imath
+import numpy as np
 from PIL import Image
 from pathlib import Path
 import imageio
+import cv2
 
 import torch
 import torchvision
@@ -25,8 +26,6 @@ from torch import nn
 from skimage.transform import resize
 
 from utils import exr_loader, exr_saver
-
-import cv2
 
 
 # Place where the new folders will be created
@@ -187,8 +186,8 @@ def move_to_subfolders(dataset_path):
         if not os.path.isdir(subfolder_path):
             os.makedirs(subfolder_path)
             print("\tCreated dir:", subfolder_path)
-        else:
-            print("\tAlready Exists:", subfolder_path)
+        # else:
+            # print("\tAlready Exists:", subfolder_path)
 
     for filetype in SUBFOLDER_MAP_SYNTHETIC:
         file_postfix = SUBFOLDER_MAP_SYNTHETIC[filetype]['postfix']
@@ -272,14 +271,14 @@ def normal_to_rgb(normals_to_convert):
     return camera_normal_rgb
 
 
-def preprocess_world_to_camera_normals(world_normals, json_files):
+def preprocess_world_to_camera_normals(path_world_normals_file, path_json_file):
     '''Will convert normals from World co-ords to Camera co-ords
     It will create a folder to store converted files. A quaternion for conversion of normal from world to camera
     co-ords is read from the json file and is multiplied with each normal in source file.
 
     Args:
-        world_normals (str): Path to world co-ord normals file.
-        json_files (str): Path to json file which stores quaternion.
+        path_world_normals_file (str): Path to world co-ord normals file.
+        path_json_file (str): Path to json file which stores quaternion.
 
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
@@ -290,7 +289,7 @@ def preprocess_world_to_camera_normals(world_normals, json_files):
     camera_normal_rgb_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
                                               SUBFOLDER_MAP_SYNTHETIC['camera-normals-rgb']['folder-name'])
 
-    prefix = os.path.basename(world_normals)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])]
+    prefix = os.path.basename(path_world_normals_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])]
     output_camera_normal_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])
     camera_normal_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals-rgb']['postfix'])
     output_camera_normal_file = os.path.join(camera_normal_dir_path, output_camera_normal_filename)
@@ -298,24 +297,22 @@ def preprocess_world_to_camera_normals(world_normals, json_files):
 
     # If cam normal already exists, skip
     if Path(output_camera_normal_file).is_file():
-        print('  Skipping {}, it already exists'.format(os.path.join(
-            SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'], output_camera_normal_filename)))
         return False
 
     world_normal_file = os.path.join(SUBFOLDER_MAP_SYNTHETIC['world-normals']['folder-name'],
-                                     os.path.basename(world_normals))
+                                     os.path.basename(path_world_normals_file))
     camera_normal_file = os.path.join(SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'],
                                       prefix + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])
-    print("  Converting {} to {}".format(world_normal_file, camera_normal_file))
+    # print("  Converting {} to {}".format(world_normal_file, camera_normal_file))
 
     # Read EXR File
-    exr_np = exr_loader(world_normals)
+    exr_np = exr_loader(path_world_normals_file)
     exr_x, exr_y, exr_z = exr_np[0], exr_np[1], exr_np[2]
     assert(exr_x.shape == exr_y.shape)
     assert(exr_y.shape == exr_z.shape)
 
     # Read Camera's Inverse Quaternion
-    json_file = open(json_files)
+    json_file = open(path_json_file)
     data = json.load(json_file)
     inverted_camera_quaternation = np.asarray(
         data['camera']['world_pose']['rotation']['inverted_quaternion'], dtype=np.float32)
@@ -359,8 +356,8 @@ def outlines_from_depth(depth_img_orig):
     '''Create outlines from the depth image
 
     This is used to create a binary mask of the outlines of depth. Outlines refers to areas where there is a sudden
-    large change in value of depth, i.e., the gradient is large. Example: the borders of an object against the background
-    will have large gradient as depth value changes from the object to that of background.
+    large change in value of depth, i.e., the gradient is large. Example: the borders of an object against the
+    background will have large gradient as depth value changes from the object to that of background.
 
     We get the gradient of the depth via a Laplacian filter with manually chosen threshold values. Another manually
     chosen threshold on gradient is applied to create a mask.
@@ -404,7 +401,7 @@ def outline_from_normal(surface_normal):
     Args:
         surface_normal (numpy.ndarray): Shape (3, height, width), dtype=float32. Each pixel contains the surface normal.
                                         The RGB channels are mapped to (x,y,z) axis and contain a value from [-1, 1].
-                                        Each surface normal should be a unit vector, i.e., they are normalized 
+                                        Each surface normal should be a unit vector, i.e., they are normalized
                                         (sqroot(x^2 + y^2 + z^2) = 1)
 
     Returns:
@@ -477,12 +474,10 @@ def create_outlines_training_data(path_depth_file, path_camera_normal_file):
     output_outlines_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix'])
     outlines_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['postfix'])
     output_outlines_file = os.path.join(outlines_dir_path, output_outlines_filename)
-    outlines_rgb_file = os.path.join(outlines_rgb_dir_path, outlines_rgb_filename)
+    output_outlines_rgb_file = os.path.join(outlines_rgb_dir_path, outlines_rgb_filename)
 
     # If outlines file already exists, skip
-    if Path(output_outlines_file).is_file():
-        print('Skipping {}, it already exists'.format(os.path.join(
-            SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'], os.path.basename(output_outlines_file))))
+    if Path(output_outlines_file).is_file() and Path(output_outlines_rgb_file).is_file():
         return False
 
     # Create outlines from depth image
@@ -519,7 +514,7 @@ def create_outlines_training_data(path_depth_file, path_camera_normal_file):
     imageio.imwrite(output_outlines_file, output)
 
     output_color = label_to_rgb(output)
-    imageio.imwrite(outlines_rgb_file, output_color)
+    imageio.imwrite(output_outlines_rgb_file, output_color)
 
     return True
 
@@ -574,7 +569,7 @@ def calculate_cos_matrix(depth_img_path, fov_y=0.7428, fov_x=1.2112):
     return cos_matrix_y, cos_matrix_x
 
 
-def create_rectified_depth_image(depth_file, cos_matrix_y, cos_matrix_x):
+def create_rectified_depth_image(path_rendered_depth_file, cos_matrix_y, cos_matrix_x):
     '''Creates and saves a rectified depth image from the rendered depth image
 
     The rendered depth image contains depth of each pixel from the object to the camera center/lens. It is obtained
@@ -594,8 +589,8 @@ def create_rectified_depth_image(depth_file, cos_matrix_y, cos_matrix_x):
           Rendered depth image                  Rectified Depth Image
 
      Args:
-        depth_file (str) : Path to the rendered depth image in .exr format with dtype=float32. Each pixel contains
-                           depth from pixel to camera center/lens.
+        depthpath_rendered_depth_file_file (str) : Path to the rendered depth image in .exr format with dtype=float32.
+                                                   Each pixel contains depth from pixel to camera center/lens.
         cos_matrix_y (numpy.ndarray): Shape (height, width) Matrix of cos of angle in the y-axis from image center
                                       to each pixel in depth image.
         cos_matrix_x (numpy.ndarray): Shape (height, width) Matrix of cos of angle in the x-axis from image center
@@ -609,18 +604,15 @@ def create_rectified_depth_image(depth_file, cos_matrix_y, cos_matrix_x):
     outlines_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
                                      SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'])
 
-    prefix = os.path.basename(depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
+    prefix = os.path.basename(path_rendered_depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
     output_depth_rectified_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['postfix'])
     output_depth_rectified_file = os.path.join(outlines_dir_path, output_depth_rectified_filename)
 
     # If outlines file already exists, skip
     if Path(output_depth_rectified_file).is_file():
-        print('Skipping {}, it already exists'.format(os.path.join(
-              SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'],
-              os.path.basename(output_depth_rectified_file))))
         return False
 
-    depth_img = exr_loader(depth_file, ndim=1)
+    depth_img = exr_loader(path_rendered_depth_file, ndim=1)
 
     # calculate modified depth/pixel in mtrs
     output = np.multiply(np.multiply(depth_img, cos_matrix_y), cos_matrix_x)
@@ -632,18 +624,52 @@ def create_rectified_depth_image(depth_file, cos_matrix_y, cos_matrix_x):
 
 
 ################################ PREPROCESS FOR MODEL ################################
-def preprocess_normals(input):
+def preprocess_rgb(im_path, imsize):
+    """Resize and save RGB image
+
+    Args:
+        im_path (str) = The path to a jpg image. This need not be an absolute path.
+        imsize (tuple, int) = (height, width) The size to which image is to be resized.
+
+    Returns:
+        bool: False if file exists and it skipped it. True if it converted the file.
+    """
+
+    if len(imsize) != 2:
+        raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
+
+    prefix = os.path.basename(im_path)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix'])]
+
+    preprocess_rgb_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
+                                      SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['folder-name'])
+    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['postfix']
+
+    output_file = os.path.join(preprocess_rgb_dir, preprocess_rgb_filename)
+
+    if Path(output_file).is_file():  # file exists
+        return False
+
+    # Open Image, transform and save
+    tf = transforms.Compose([transforms.Resize(imsize, interpolation=Image.BILINEAR)])
+
+    img = Image.open(im_path).convert("RGB")
+    img = tf(img)
+
+    # Output converted RGB numpy arrays as RGB images
+    imageio.imwrite(output_file, np.array(img))
+
+    return True
+
+
+def preprocess_normals(normals_path, imsize):
     """Resize Normals and save as exr file
 
     Args:
-        (normals_path, (height, width)) (tuple):
-            normals_path (str)     = The path to an exr file that contains the normal to be preprocessed.
-            (height, width)  (int) = The size to which image is to be resized.
+        normals_path (str)     = The path to an exr file that contains the normal to be preprocessed.
+        imsize  (tuple, int) = (height, width) The size to which image is to be resized.
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
-
     """
-    normals_path, imsize = input
 
     if len(imsize) != 2:
         raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
@@ -663,13 +689,9 @@ def preprocess_normals(input):
     output_file = os.path.join(preprocess_normals_dir, preprocess_normals_filename)
     output_rgb_file = os.path.join(preprocess_normal_viz_dir, preprocess_normal_viz_filename)
 
-    if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists"
-              .format(os.path.join(SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-camera-normals']['folder-name'],
-                                   preprocess_normals_filename)))
+    if Path(output_file).is_file() and Path(output_rgb_file).is_file():  # file exists
         return False
 
-    # print('    Converting {}'.format(normals_path))
     normals = exr_loader(normals_path, ndim=3)
 
     # Resize the normals
@@ -682,68 +704,12 @@ def preprocess_normals(input):
     normals = nn.functional.normalize(normals, p=2, dim=0)
     normals = normals.numpy()
 
-    # # Save array as numpy file
-    # np.save(output_file, normals)
-    # print('    saved', output_file)
-
     # Save array as EXR file
     exr_saver(output_file, normals, ndim=3)
-    print('    saved', output_file)
 
     # Output converted Normals as RGB images
     camera_normal_rgb = normal_to_rgb(normals.transpose(1, 2, 0))
     imageio.imwrite(output_rgb_file, camera_normal_rgb)
-
-    return True
-
-
-def preprocess_rgb(input):
-    """Resize and save RGB image
-
-    Args:
-        (im_path, (height, width)) (tuple):
-            im_path (str)                 = The path to a jpg image. This need not be an absolute path.
-            (height, width)  (tuple, int) = The size to which image is to be resized.
-
-    Returns:
-        bool: False if file exists and it skipped it. True if it converted the file.
-
-    """
-    im_path, imsize = input
-
-    if len(imsize) != 2:
-        raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
-
-    prefix = os.path.basename(im_path)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix'])]
-
-    preprocess_rgb_dir = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'],
-                                      SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['folder-name'])
-    preprocess_rgb_filename = prefix + SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['postfix']
-
-    output_file = os.path.join(preprocess_rgb_dir, preprocess_rgb_filename)
-
-    if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists"
-              .format(os.path.join(SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-rgb-imgs']['folder-name'],
-                                   preprocess_rgb_filename)))
-        return False
-
-    # Open Image, transform and save
-    im = Image.open(im_path).convert("RGB")
-
-    tf = transforms.Compose([
-        # TODO: RESIZE INTO 16:9 ASPECT RATIO. ACCEPT 2 INPUTS FOR IMSIZE, OR TUPLE
-        transforms.Resize(imsize, interpolation=Image.BILINEAR),
-        # transforms.ToTensor(), #saving back as image, this not needed.
-        # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-    ])
-    im = tf(im)
-
-    im = np.array(im)
-
-    # Output converted RGB numpy arrays as RGB images
-    imageio.imwrite(output_file, im)
-    print('    saved', output_file)
 
     return True
 
@@ -757,9 +723,7 @@ def preprocess_outlines(im_path, imsize):
 
     Returns:
         bool: False if file exists and it skipped it. True if it converted the file.
-
     """
-    # im_path, imsize = input
 
     if len(imsize) != 2:
         raise ValueError('Pass imsize as a tuple of (height, width). Given imsize = {}'.format(imsize))
@@ -779,12 +743,7 @@ def preprocess_outlines(im_path, imsize):
     output_file = os.path.join(preprocess_outlines_dir, preprocess_outlines_filename)
     output_rgb_file = os.path.join(preprocess_outlines_viz_dir, preprocess_outlines_viz_filename)
 
-    # TODO: Also check for the rgb-visualization. If that does not exist, then create it.\
-    # Currently skips if image present, even if rgb vis absent.
-    if Path(output_file).is_file():  # file exists
-        print("    Skipping {}, it already exists"
-              .format(os.path.join(SUBFOLDER_MAP_RESIZED_SYNTHETIC['preprocessed-outlines']['folder-name'],
-                                   preprocess_outlines_filename)))
+    if Path(output_file).is_file() and Path(output_rgb_file).is_file():  # file exists
         return False
 
     # Open Image, apply transform to resize
@@ -796,15 +755,9 @@ def preprocess_outlines(im_path, imsize):
 
     # Output converted segmentation labels
     imageio.imwrite(output_file, im_np)
-    print('    saved', output_file)
 
     # Output RGB visualizations of the outlines
-    rgbArray = np.zeros((im_np.shape[0], im_np.shape[1], 3), dtype=np.uint8)
-    rgbArray[:, :, 0][im_np == 0] = 255
-    rgbArray[:, :, 1][im_np == 1] = 255
-    rgbArray[:, :, 2][im_np == 2] = 255
-    imageio.imwrite(output_rgb_file, rgbArray)
-    print('    saved', output_rgb_file)
+    imageio.imwrite(output_rgb_file, label_to_rgb(im_np))
 
     return True
 
@@ -888,7 +841,9 @@ def main():
                           \n  Proceeding to process files in Dest dir.", 'red'))
             time.sleep(2)
 
-    ### STAGE 1: Move the data into subfolder ###
+    ########## STAGE 1: Move the data into subfolder ##########
+    print('\n\n' + '=' * 20, 'Stage 1 - Move the data into subfolder', '=' * 20)
+
     # Create new dir to store processed dataset
     if not os.path.isdir(src_dir_path):
         os.makedirs(src_dir_path)
@@ -907,58 +862,28 @@ def main():
     print("\nSeparating dataset into folders.")
     move_to_subfolders(src_dir_path)
 
-    ### STAGE 2: Convert World Normals to Camera Normals - skip if test set ###
+    ########## STAGE 2: Create Training Data - Camera Normals, Outlines, Rectified Depth ##########
+    print('\n\n' + '=' * 20, 'Stage 2 - Create Training Data', '=' * 20)
+
     if not (args.test_set):
-        # Create a pool of processes. By default, one is created for each CPU in your machine.
+        # Convert World Normals to Camera Normals
         with concurrent.futures.ProcessPoolExecutor() as executor:
             # Get a list of files to process
             world_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['world-normals']['folder-name'])
             json_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['json-files']['folder-name'])
 
-            world_normals_files_list = sorted(glob.glob(
-                os.path.join(world_normals_dir, "*" +
-                             SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])))
+            world_normals_files_list = sorted(glob.glob(os.path.join(world_normals_dir,
+                                              "*" + SUBFOLDER_MAP_SYNTHETIC['world-normals']['postfix'])))
             json_files_list = sorted(glob.glob(os.path.join(
-                json_files_dir, "*" + SUBFOLDER_MAP_SYNTHETIC['json-files']['postfix'])))
+                                     json_files_dir, "*" + SUBFOLDER_MAP_SYNTHETIC['json-files']['postfix'])))
 
-            # Process the list of files, but split the work across the process pool to use all CPUs!
-            print("\n\nConverting World co-ord Normals to Camera co-ord Normals...Check your CPU usage!!")
-            num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(preprocess_world_to_camera_normals, world_normals_files_list, json_files_list):
-                if converted_file is True:
-                    num_converted += 1
-                else:
-                    num_skipped += 1
+            print("\nConverting World co-ord Normals to Camera co-ord Normals...Check your CPU usage!!")
+            results = list(tqdm.tqdm(executor.map(preprocess_world_to_camera_normals,
+                                     world_normals_files_list, json_files_list), total=len(json_files_list)))
+            print(colored('\n  Converted {} world-normals'.format(results.count(True)), 'green'))
+            print(colored('  Skipped {} world-normals'.format(results.count(False)), 'red'))
 
-            print(colored('\n  Converted {} world-normals'.format(num_converted), 'green'))
-            print(colored('  Skipped {} world-normals'.format(num_skipped), 'red'))
-
-        # creating outlines from depth and normals
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-
-            # Get a list of files to process
-            depth_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['depth-files']['folder-name'])
-            camera_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'])
-
-            depth_files_list = sorted(glob.glob(
-                os.path.join(depth_files_dir, "*" +
-                             SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])))
-            camera_normals_list = sorted(glob.glob(os.path.join(
-                camera_normals_dir, "*" + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])))
-
-            # Process the list of files, but split the work across the process pool to use all CPUs!
-            print("\n\nCreating outlines from depth and normals...Check your CPU usage!!")
-            num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(create_outlines_training_data, depth_files_list, camera_normals_list):
-                if converted_file is True:
-                    num_converted += 1
-                else:
-                    num_skipped += 1
-
-            print(colored('\n  created {} outlines'.format(num_converted), 'green'))
-            print(colored('  Skipped {} outlines from creation'.format(num_skipped), 'red'))
-
-        # calculating rectified depth
+        # Create Rectified Depth
         with concurrent.futures.ProcessPoolExecutor() as executor:
             # Get a list of files to process
             depth_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['depth-files']['folder-name'])
@@ -966,91 +891,89 @@ def main():
                 os.path.join(depth_files_dir, "*" +
                              SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])))
 
-            # claculating cos matrices
+            print("\nRectifiing depth images...")
+            # Calculate cos matrices
             depth_img_file_path = depth_files_list[0]
             cos_matrix_y, cos_matrix_x = calculate_cos_matrix(depth_img_file_path, args.fov_y, args.fov_x)
 
-            # Process the list of files, but split the work across the process pool to use all CPUs!
-            print("\n\nRectifiing depth images...Check your CPU usage!!")
-            num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(create_rectified_depth_image, depth_files_list,
-                                               cos_matrix_y, cos_matrix_x):
-                if converted_file is True:
-                    num_converted += 1
-                else:
-                    num_skipped += 1
+            # Apply Cos matrices to rectify depth
+            results = list(tqdm.tqdm(executor.map(create_rectified_depth_image, depth_files_list,
+                                     cos_matrix_y, cos_matrix_x), total=len(depth_files_list)))
+            print(colored('\n  rectified {} depth images'.format(results.count(True)), 'green'))
+            print(colored('  Skipped {} depth images'.format(results.count(False)), 'red'))
 
-            print(colored('\n  rectified {} depth images'.format(num_converted), 'green'))
-            print(colored('  Skipped {} from rectifing'.format(num_skipped), 'red'))
+        # Create Outlines from Depth and Normals
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Get a list of files to process
+            depth_files_dir = os.path.join(src_dir_path,
+                                           SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'])
+            camera_normals_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'])
 
-    ### STAGE 3: Preprocess the data required for training ###
+            depth_files_list = sorted(glob.glob(os.path.join(depth_files_dir, "*" +
+                                      SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['postfix'])))
+            camera_normals_list = sorted(glob.glob(os.path.join(camera_normals_dir,
+                                         "*" + SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])))
+
+            print("\nCreating Outline images...")
+            results = list(tqdm.tqdm(executor.map(create_outlines_training_data, depth_files_list,
+                                     camera_normals_list), total=len(depth_files_list)))
+            print(colored('\n  created {} outlines'.format(results.count(True)), 'green'))
+            print(colored('  Skipped {} outlines'.format(results.count(False)), 'red'))
+
+    ########## STAGE 3: Preprocess the data required for training ##########
+    print('\n\n' + '=' * 20, 'Stage 3 - Resize Training Data for Model', '=' * 20)
+
     # Create dir to store training data
-    print("\n\nPre-Processing data - this will be directly used as training data by model")
+    print("\n\nRe-sizing data - this will be directly used as training data by model.")
     train_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['training-data'])
-    print('train_dir_path', train_dir_path)
 
+    print("  Resized Data will be placed in below folders:")
     for filetype in SUBFOLDER_MAP_RESIZED_SYNTHETIC:
         subfolder_path = os.path.join(train_dir_path, SUBFOLDER_MAP_RESIZED_SYNTHETIC[filetype]['folder-name'])
-        print('subfolder_path', subfolder_path)
+        print('   ', subfolder_path)
         if not os.path.isdir(subfolder_path):
             os.makedirs(subfolder_path)
-            print("    Created dir:", subfolder_path)
-        else:
-            print("    Dir already Exists:", subfolder_path)
 
     print("\n")
 
-    # Create a pool of processes. By default, one is created for each CPU in your machine.
     with concurrent.futures.ProcessPoolExecutor(1) as executor:
-        # Process the list of files, but split the work across the process pool to use all CPUs!
-
         # rgb files
+        print('Resizing RGB Images')
         rgb_imgs_path = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['rgb-files']['folder-name'])
-        image_files_rgb = glob.glob(os.path.join(rgb_imgs_path, "*" + SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix']))
+        image_files_rgb = sorted(glob.glob(os.path.join(rgb_imgs_path,
+                                 "*" + SUBFOLDER_MAP_SYNTHETIC['rgb-files']['postfix'])))
 
-        input = [(image, imsize) for image in sorted(image_files_rgb)]
-        num_converted, num_skipped = 0, 0
-        for converted_file in executor.map(preprocess_rgb, input):
-            if converted_file is True:
-                num_converted += 1
-            else:
-                num_skipped += 1
-        print(colored('\n  Pre-processed {} rgb files'.format(num_converted), 'green'))
-        print(colored('  Skipped {} rgb files\n'.format(num_skipped), 'red'))
+        imsize_list = [imsize] * len(image_files_rgb)
+        results = list(tqdm.tqdm(executor.map(preprocess_rgb, image_files_rgb, imsize_list),
+                                 total=len(image_files_rgb)))
+        print(colored('\n  Resized {} rgb files'.format(results.count(True)), 'green'))
+        print(colored('  Skipped {} rgb files\n'.format(results.count(False)), 'red'))
 
         # surface normal files - skip if test set
         if not (args.test_set):
+            print('Resizing Surface Normals')
             camera_normals_path = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['camera-normals']['folder-name'])
-            image_files_normals = glob.glob(os.path.join(camera_normals_path, "*" +
-                                                         SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix']))
+            image_files_normals = sorted(glob.glob(os.path.join(camera_normals_path, "*" +
+                                                   SUBFOLDER_MAP_SYNTHETIC['camera-normals']['postfix'])))
 
-            input = [(image, imsize) for image in sorted(image_files_normals)]
-            num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(preprocess_normals, input):
-                if converted_file is True:
-                    num_converted += 1
-                else:
-                    num_skipped += 1
-            print(colored('\n  Pre-processed {} camera-normal files'.format(num_converted), 'green'))
-            print(colored('  Skipped {} camera-normal files\n'.format(num_skipped), 'red'))
+            imsize_list = [imsize] * len(image_files_normals)
+            results = list(tqdm.tqdm(executor.map(preprocess_normals, image_files_normals, imsize_list),
+                                     total=len(image_files_normals)))
+            print(colored('\n  Resized {} camera-normal files'.format(results.count(True)), 'green'))
+            print(colored('  Skipped {} camera-normal files\n'.format(results.count(False)), 'red'))
 
         # Outlines files - skip if test set
         if not (args.test_set):
+            print('Resizing Outlines Images')
             outlines_path = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['outlines']['folder-name'])
-            images_filelist = glob.glob(os.path.join(outlines_path, "*" +
-                                                     SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix']))
+            images_filelist = sorted(glob.glob(os.path.join(outlines_path, "*" +
+                                               SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix'])))
 
-            input_paths = [image_path for image_path in sorted(images_filelist)]
             imsize_list = [imsize] * len(images_filelist)
-            num_converted, num_skipped = 0, 0
-            for converted_file in executor.map(preprocess_outlines, input_paths, imsize_list):
-                if converted_file is True:
-                    num_converted += 1
-                else:
-                    num_skipped += 1
-            print(colored('\n  Pre-processed {} outlines files'.format(num_converted), 'green'))
-            print(colored('  Skipped {} outlines files\n'.format(num_skipped), 'red'))
-
+            results = list(tqdm.tqdm(executor.map(preprocess_outlines, images_filelist, imsize_list),
+                                     total=len(images_filelist)))
+            print(colored('\n  Resized {} outlines files'.format(results.count(True)), 'green'))
+            print(colored('  Skipped {} outlines files\n'.format(results.count(False)), 'red'))
 
 if __name__ == "__main__":
     main()
