@@ -204,10 +204,10 @@ for epoch in range(START_EPOCH, END_EPOCH):
     print('-' * 30)
 
     # Log the current Epoch Number
-    writer.add_scalar('Epoch Number', epoch, total_iter_num)
+    writer.add_scalar('data/Epoch Number', epoch, total_iter_num)
 
     ###################### Training Cycle #############################
-    print('\nTrain:')
+    print('Train:')
     print('=' * 10)
 
     model.train()
@@ -235,7 +235,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         # statistics
         running_loss += loss.item()
-        writer.add_scalar('Train BatchWise Loss', loss.item(), total_iter_num)
+        writer.add_scalar('data/Train BatchWise Loss', loss.item(), total_iter_num)
         _total_iou, per_class_iou, num_images_per_class = utils.get_iou(predictions, labels,
                                                                         n_classes=config.train.numClasses)
         total_iou += _total_iou
@@ -246,12 +246,12 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(trainLoader))
-    writer.add_scalar('Train Epoch Loss', epoch_loss, total_iter_num)
+    writer.add_scalar('data/Train Epoch Loss', epoch_loss, total_iter_num)
     print('\nTrain Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log mIoU
     miou = total_iou / (len(trainLoader))
-    writer.add_scalar('Train mIoU', miou, total_iter_num)
+    writer.add_scalar('data/Train mIoU', miou, total_iter_num)
     print('Train mIoU: {:.4f}'.format(miou))
 
     # Update Learning Rate Scheduler
@@ -324,12 +324,12 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(validationLoader))
-    writer.add_scalar('Validation Epoch Loss', epoch_loss, total_iter_num)
+    writer.add_scalar('data/Validation Epoch Loss', epoch_loss, total_iter_num)
     print('\nValidation Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log mIoU
     miou = total_iou / (len(trainLoader))
-    writer.add_scalar('Validation mIoU', miou, total_iter_num)
+    writer.add_scalar('data/Validation mIoU', miou, total_iter_num)
     print('Validation mIoU: {:.4f}'.format(miou))
 
     # Log 10 images every N epochs
