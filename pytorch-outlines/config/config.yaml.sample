@@ -65,6 +65,8 @@ eval:
 
   # Params
   batchSize: 32
+  imgHeight: 288
+  imgWidth: 512
   numWorkers: 8 # Num of workers used in the dataloader
   pathWeightsFile: 'logs_test/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to the checkpoint to be loaded
   resultsDirSynthetic: 'data/results/test-synthetic' # The dir to which results on synthetic images will be stored
