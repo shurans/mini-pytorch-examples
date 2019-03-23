@@ -69,7 +69,7 @@ SUBFOLDER_MAP_SYNTHETIC = {
     'outlines-rgb': {'postfix': '-outlineSegmentationRgb.png',
                      'folder-name': 'outlines/rgb-visualizations'},
 
-    'depth-files-rectified': {'postfix': '-depth.exr',
+    'depth-files-rectified': {'postfix': '-depth-rectified.exr',
                               'folder-name': 'depth-imgs-rectified'},
 }
 

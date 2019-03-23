@@ -7,12 +7,12 @@ import io
 import shutil
 from multiprocessing import Process
 
+from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from termcolor import colored
 import oyaml
 from attrdict import AttrDict
 import numpy as np
-from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
@@ -21,55 +21,7 @@ from imgaug import augmenters as iaa
 
 from models import unet
 import dataloader
-from loss_functions import cross_entropy2d
-
-
-def label_to_rgb(label):
-    '''Output RGB visualizations of the outlines' labels
-
-    The labels of outlines have 3 classes: Background, Depth Outlines, Surface Normal Outlines which are mapped to
-    Red, Green and Blue respectively.
-
-    Args:
-        label (torch.Tensor): Shape: (no. of images, 1, height, width). Each pixel contains an int with value of class.
-
-    Returns:
-        torch.Tensor: Shape (no. of images, 3, height, width): RGB representation of the labels
-    '''
-    rgbArray = torch.zeros((label.shape[0], 3, label.shape[2], label.shape[3]), dtype=torch.float)
-    rgbArray[:, 0, :, :][label[:, 0, :, :] == 0] = 1
-    rgbArray[:, 1, :, :][label[:, 0, :, :] == 1] = 1
-    rgbArray[:, 2, :, :][label[:, 0, :, :] == 2] = 1
-
-    return rgbArray
-
-
-def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
-    '''Make a grid of images for display purposes
-    Size of grid is (3, N, 3), where each coloum belongs to input, output, label resp
-
-    Args:
-        inputs (Tensor): Batch Tensor of shape (B x C x H x W)
-        outputs (Tensor): Batch Tensor of shape (B x C x H x W)
-        labels (Tensor): Batch Tensor of shape (B x C x H x W)
-        max_num_images_to_save (int, optional): Defaults to 3. Out of the given tensors, chooses a
-            max number of imaged to put in grid
-
-    Returns:
-        numpy.ndarray: A numpy array with of input images arranged in a grid
-    '''
-
-    img_tensor = inputs[:max_num_images_to_save]
-    output_tensor = torch.unsqueeze(torch.max(outputs[:max_num_images_to_save], 1)[1].float(), 1)
-    output_tensor_rgb = label_to_rgb(output_tensor)
-    label_tensor = labels[:max_num_images_to_save]
-    label_tensor_rgb = label_to_rgb(label_tensor)
-
-    images = torch.cat((img_tensor, output_tensor_rgb, label_tensor_rgb), dim=3)
-    grid_image = make_grid(images, 1, normalize=True, scale_each=True)
-
-    return grid_image
-
+from utils import utils
 
 ###################### Load Config File #############################
 CONFIG_FILE_PATH = 'config/config.yaml'
@@ -156,6 +108,8 @@ assert (config.train.validationBatchSize < len(db_train)), 'validationBatchSize 
                                                            images in validation dataset'
 trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
                          shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+# NOTE: Calculation of statistics like epoch_loss depend on the param drop_last being True. They calculate total num
+#       of images as num of batches * batchSize, which is true only when drop_last=True.
 if db_val_list:
     validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=False,
                                   num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
@@ -253,13 +207,14 @@ for epoch in range(START_EPOCH, END_EPOCH):
     writer.add_scalar('Epoch Number', epoch, total_iter_num)
 
     ###################### Training Cycle #############################
-    print('Train:')
+    print('\nTrain:')
     print('=' * 10)
 
     model.train()
 
     running_loss = 0.0
-    for iter_num, batch in enumerate(trainLoader):
+    total_iou = 0.0
+    for iter_num, batch in enumerate(tqdm(trainLoader)):
         total_iter_num += 1
 
         # Get data
@@ -272,22 +227,32 @@ for epoch in range(START_EPOCH, END_EPOCH):
         torch.set_grad_enabled(True)
         outputs = model.forward(inputs)
 
-        loss = criterion(outputs, labels)
+        predictions = torch.max(outputs, 1)[1]
+
+        loss = criterion(outputs, labels.long().squeeze(1))
         loss.backward()
         optimizer.step()
 
         # statistics
         running_loss += loss.item()
         writer.add_scalar('Train BatchWise Loss', loss.item(), total_iter_num)
+        _total_iou, per_class_iou, num_images_per_class = utils.get_iou(predictions, labels,
+                                                                        n_classes=config.train.numClasses)
+        total_iou += _total_iou
 
         # Print loss every 20 Batches
-        if (iter_num % 20) == 0:
-            print('Epoch{} Batch{} BatchLoss: {:.4f} '.format(epoch, iter_num, loss.item()))
+        # if (iter_num % 20) == 0:
+        #     print('Epoch{} Batch{} BatchLoss: {:.4f} '.format(epoch, iter_num, loss.item()))
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(trainLoader))
     writer.add_scalar('Train Epoch Loss', epoch_loss, total_iter_num)
-    print('\nTrain Epoch Loss: {:.4f}\n'.format(epoch_loss))
+    print('\nTrain Epoch Loss: {:.4f}'.format(epoch_loss))
+
+    # Log mIoU
+    miou = total_iou / (len(trainLoader))
+    writer.add_scalar('Train mIoU', miou, total_iter_num)
+    print('Train mIoU: {:.4f}'.format(miou))
 
     # Update Learning Rate Scheduler
     if config.train.lrScheduler == 'StepLR':
@@ -303,8 +268,8 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log 3 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
-                                       labels.detach().cpu(), max_num_images_to_save=3)
+        grid_image = utils.create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
+                                             labels.detach().cpu(), max_num_images_to_save=3)
         writer.add_image('Train', grid_image, total_iter_num)
 
     # Save the model checkpoint every N epochs
@@ -327,13 +292,14 @@ for epoch in range(START_EPOCH, END_EPOCH):
         }, filename)
 
     ###################### Validation Cycle #############################
-    print('Validation:')
+    print('\nValidation:')
     print('=' * 10)
 
     model.eval()
 
     running_loss = 0.0
-    for iter_num, sample_batched in enumerate(validationLoader):
+    total_iou = 0.0
+    for iter_num, sample_batched in enumerate(tqdm(validationLoader)):
         inputs, labels = sample_batched
 
         # Forward pass of the mini-batch
@@ -343,34 +309,45 @@ for epoch in range(START_EPOCH, END_EPOCH):
         with torch.no_grad():
             outputs = model(inputs)
 
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, labels.long().squeeze(1))
 
         running_loss += loss.item()
 
+        predictions = torch.max(outputs, 1)[1]
+        _total_iou, per_class_iou, num_images_per_class = utils.get_iou(predictions, labels,
+                                                                        n_classes=config.train.numClasses)
+        total_iou += _total_iou
+
         # Pring loss every 20 Batches
-        if (iter_num % 20) == 0:
-            print('Epoch{} Batch{} BatchLoss: {:.4f} '.format(epoch, iter_num, loss.item()))
+        # if (iter_num % 20) == 0:
+        #     print('Epoch{} Batch{} BatchLoss: {:.4f} '.format(epoch, iter_num, loss.item()))
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(validationLoader))
     writer.add_scalar('Validation Epoch Loss', epoch_loss, total_iter_num)
-    print('\nValidation Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
+    print('\nValidation Epoch Loss: {:.4f}'.format(epoch_loss))
+
+    # Log mIoU
+    miou = total_iou / (len(trainLoader))
+    writer.add_scalar('Validation mIoU', miou, total_iter_num)
+    print('Validation mIoU: {:.4f}'.format(miou))
 
     # Log 10 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
-                                       labels.detach().cpu(), max_num_images_to_save=10)
+        grid_image = utils.create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
+                                             labels.detach().cpu(), max_num_images_to_save=10)
         writer.add_image('Validation', grid_image, total_iter_num)
 
     ###################### Test Cycle #############################
     if db_test_list:
-        print('Testing:')
+        print('\nTesting:')
         print('=' * 10)
 
         model.eval()
 
         running_loss = 0.0
-        for iter_num, sample_batched in enumerate(testLoader):
+        total_iou = 0.0
+        for iter_num, sample_batched in enumerate(tqdm(testLoader)):
             inputs, labels = sample_batched
 
             # Forward pass of the mini-batch
@@ -380,13 +357,13 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 outputs = model(inputs)
 
             # Pring loss every 1 Batche
-            if (iter_num % 1) == 0:
-                print('Test Epoch{} Batch{} '.format(epoch, iter_num))
+            # if (iter_num % 1) == 0:
+            #     print('Test Epoch{} Batch{} '.format(epoch, iter_num))
 
         # Log 30 images every N epochs
         if (epoch % config.train.saveImageInterval) == 0:
-            grid_image = create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
-                                           labels.detach().cpu(), max_num_images_to_save=30)
+            grid_image = utils.create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
+                                                 labels.detach().cpu(), max_num_images_to_save=30)
             writer.add_image('Testing', grid_image, total_iter_num)
 
 writer.close()
