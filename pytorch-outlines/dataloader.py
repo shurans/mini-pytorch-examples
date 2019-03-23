@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function, division
+import os
+import glob
+from PIL import Image
+import Imath
+import numpy as np
+import imageio
+
+import torch
+from torch.utils.data import Dataset
+from torchvision import transforms
+from imgaug import augmenters as iaa
+import imgaug as ia
+
+from utils import utils
+
+
+class SurfaceNormalsDataset(Dataset):
+    """
+    Dataset class for training model on estimation of surface normals.
+    Uses imgaug for image augmentations
+
+    Args:
+        input_dir (str): Path to folder containing the input images.
+        label_dir (str): Path to folder containing the labels.
+        transform (imgaug transforms): imgaug Transforms to be applied to the imgs
+        input_only (list, str): List of transforms that are to be applied only to the input img
+
+    """
+
+    def __init__(self,
+                 input_dir='data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs',
+                 label_dir='data/datasets/train/milk-bottles-train/resized-files/preprocessed-outlines',
+                 transform=None,
+                 input_only=None,
+                 ):
+
+        super().__init__()
+
+        self.images_dir = input_dir
+        self.labels_dir = label_dir
+        self.transform = transform
+        self.input_only = input_only
+
+        # Create list of filenames
+        self._datalist_input = None  # Variable containing list of all input images filenames in dataset
+        self._datalist_label = None  # Variable containing list of all ground truth filenames in dataset
+        self._extension_input = '.png'  # The file extension of input images
+        self._extension_label = '.png'  # The file extension of labels
+        self._create_lists_filenames(self.images_dir, self.labels_dir)
+
+    def __len__(self):
+        return len(self._datalist_input)
+
+    def __getitem__(self, index):
+        '''Returns an item from the dataset at the given index
+
+        Args:
+            index (int): index of the item required from dataset.
+
+        Returns:
+            torch.Tensor: Tensor of input image
+            torch.Tensor: Tensor of label
+        '''
+
+        image_path = self._datalist_input[index]
+        label_path = self._datalist_label[index]
+
+        # Open input imgs
+        _img = Image.open(image_path).convert('RGB')
+        _img = np.array(_img)
+
+        # Open labels
+        _label = Image.open(label_path).convert('L')
+        _label = np.array(_label)[..., np.newaxis]
+
+        # Apply image augmentations and convert to Tensor
+        if self.transform:
+            det_tf = self.transform.to_deterministic()
+            _img = det_tf.augment_image(_img)
+            _img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
+            _label = det_tf.augment_image(_label, hooks=ia.HooksImages(activator=self._activator_masks))
+
+        _img_tensor = transforms.ToTensor()(_img)
+        _label_tensor = transforms.ToTensor()(_label.astype(np.float))
+
+        return _img_tensor, _label_tensor
+
+    def _create_lists_filenames(self, images_dir, labels_dir):
+        '''Creates a list of filenames of images and labels each in dataset
+        The label at index N will match the image at index N.
+
+        Args:
+            images_dir (str): Path to the dir where images are stored
+            labels_dir (str): Path to the dir where labels are stored
+
+        Raises:
+            ValueError: If the given directories are invalid
+            ValueError: No images were found in given directory
+            ValueError: Number of images and labels do not match
+        '''
+
+        assert os.path.isdir(images_dir), 'Dataloader given images directory that does not exist: "%s"' % (images_dir)
+        imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
+        imagepaths = sorted(glob.glob(imageSearchStr))
+        numImages = len(imagepaths)
+        if numImages == 0:
+            raise ValueError('No images found in given directory. Searched for {}'.format(imageSearchStr))
+
+        if labels_dir:
+            assert os.path.isdir(labels_dir), ('Dataloader given labels directory that does not exist: "%s"'
+                                               % (labels_dir))
+            labelSearchStr = os.path.join(labels_dir, '*' + self._extension_label)
+            labelpaths = sorted(glob.glob(labelSearchStr))
+            numLabels = len(labelpaths)
+            if numLabels == 0:
+                raise ValueError('No labels found in given directory. Searched for {}'.format(imageSearchStr))
+            if numImages != numLabels:
+                raise ValueError('The number of images and labels do not match. Please check data,\
+                                found {} images and {} labels' .format(numImages, numLabels))
+
+        self._datalist_input = imagepaths
+        if labels_dir:
+            self._datalist_label = labelpaths
+
+    def _activator_masks(self, images, augmenter, parents, default):
+        '''Used with imgaug to help only apply some augmentations to images and not labels
+        Eg: Blur is applied to input only, not label. However, resize is applied to both.
+        '''
+        if self.input_only and augmenter.name in self.input_only:
+            return False
+        else:
+            return default
+
+
+class SurfaceNormalsRealImagesDataset(Dataset):
+    '''Dataset class for inference on real images with surface normals estimation model.
+    Uses pytorch.transforms for resizing images to the required size.
+
+    Args:
+        input_dir (str, optional): Path where the images are stored.
+        transform (imgaug transforms): imgaug Transforms to be applied to the imgs
+    '''
+    INPUT_IMG_EXTENSIONS = ['.jpg', '.jpeg', '.JPG', '.png', '.PNG']
+
+    @staticmethod
+    def _isimage(image, ends):
+        return any(image.endswith(end) for end in ends)
+
+    def __init__(self,
+                 input_dir='data/datasets/test/camera-pics/resized-files/preprocessed-rgb-imgs',
+                 transform=None,
+                 ):
+
+        super().__init__()
+
+        self.input_dir = input_dir
+        self.transform = transform
+
+        # Create list of filenames
+        self._datalist_input = None  # Variable containing list of all input images filenames in dataset
+        self._extension_input = '.png'  # The file extension of input images
+        self._create_lists_filenames(self.input_dir)
+
+    def __len__(self):
+        return len(self._datalist_input)
+
+    def __getitem__(self, index):
+        '''Returns an item from the dataset at the given index
+
+        Args:
+            index (int): index of the item required from dataset.
+
+        Returns:
+            torch.Tensor: Tensor of input image. Shape: (3, height, width)
+            torch.Tensor: Tensor of zeroes as label. Shape: (3, height, width)
+        '''
+
+        image_path = self._datalist_input[index]
+
+        # Open input imgs
+        _img = Image.open(image_path).convert('RGB')
+        _img = np.array(_img)
+
+        # Apply image augmentations and convert to Tensor
+        if self.transform:
+            det_tf = self.transform.to_deterministic()
+            _img = det_tf.augment_image(_img)
+            # _img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
+
+        _img_tensor = transforms.ToTensor()(_img)
+        _label_tensor = torch.zeros((1, _img_tensor.shape[1], _img_tensor.shape[2]), dtype=torch.float32)
+
+        return _img_tensor, _label_tensor
+
+    def _create_lists_filenames(self, input_dir):
+        '''Create a list of filenames of images in dataset dir.
+        '''
+        assert os.path.isdir(input_dir), 'Dataloader given images directory that does not exist: "%s"' % (input_dir)
+
+        self._datalist_input = sorted((os.path.join(self.input_dir, img)) for img in os.listdir(self.input_dir)
+                                      if self._isimage(img, self.INPUT_IMG_EXTENSIONS))
+
+        assert len(self._datalist_input) > 0, ('No images found in given directory. Searched for {}'
+                                               .format(self.INPUT_IMG_EXTENSIONS))
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+    import torchvision
+
+    # Example Augmentations using imgaug
+    # imsize = 512
+    # augs_train = iaa.Sequential([
+    #     # Geometric Augs
+    #     iaa.Scale((imsize, imsize), 0), # Resize image
+    #     iaa.Fliplr(0.5),
+    #     iaa.Flipud(0.5),
+    #     iaa.Rot90((0, 4)),
+    #     # Blur and Noise
+    #     #iaa.Sometimes(0.2, iaa.GaussianBlur(sigma=(0, 1.5), name="gaus-blur")),
+    #     #iaa.Sometimes(0.1, iaa.Grayscale(alpha=(0.0, 1.0), from_colorspace="RGB", name="grayscale")),
+    #     iaa.Sometimes(0.2, iaa.AdditiveLaplaceNoise(scale=(0, 0.1*255), per_channel=True, name="gaus-noise")),
+    #     # Color, Contrast, etc.
+    #     #iaa.Sometimes(0.2, iaa.Multiply((0.75, 1.25), per_channel=0.1, name="brightness")),
+    #     iaa.Sometimes(0.2, iaa.GammaContrast((0.7, 1.3), per_channel=0.1, name="contrast")),
+    #     iaa.Sometimes(0.2, iaa.AddToHueAndSaturation((-20, 20), name="hue-sat")),
+    #     #iaa.Sometimes(0.3, iaa.Add((-20, 20), per_channel=0.5, name="color-jitter")),
+    # ])
+    # augs_test = iaa.Sequential([
+    #     # Geometric Augs
+    #     iaa.Scale((imsize, imsize), 0),
+    # ])
+
+    augs = None  # augs_train, augs_test, None
+    input_only = None  # ["gaus-blur", "grayscale", "gaus-noise", "brightness", "contrast", "hue-sat", "color-jitter"]
+
+    db_test = SurfaceNormalsDataset(
+        input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
+        label_dir='data/datasets/milk-bottles/resized-files/preprocessed-camera-normals',
+        transform=augs,
+        input_only=input_only
+    )
+
+    batch_size = 16
+    testloader = DataLoader(db_test, batch_size=batch_size, shuffle=True, num_workers=32, drop_last=True)
+
+    # Show 1 Shuffled Batch of Images
+    for ii, batch in enumerate(testloader):
+        # Get Batch
+        img, label = batch
+        print('image shape, type: ', img.shape, img.dtype)
+        print('label shape, type: ', label.shape, label.dtype)
+
+        # Show Batch
+        sample = torch.cat((img, label), 2)
+        im_vis = torchvision.utils.make_grid(sample, nrow=batch_size // 4, padding=2, normalize=True, scale_each=True)
+        plt.imshow(im_vis.numpy().transpose(1, 2, 0))
+        plt.show()
+
+        break
