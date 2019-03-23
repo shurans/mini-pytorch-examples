@@ -66,12 +66,13 @@ augs_train = iaa.Sequential([
 db_train_list = []
 for dataset in config.train.datasets:
     db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
-                                          transform=None, input_only=None)
+                                          transform=augs_train, input_only=None)
+    train_size = int(config.train.percentageDataForTraining * len(db))
+    db = torch.utils.data.Subset(db, range(train_size))
     db_train_list.append(db)
 
 db_train = torch.utils.data.ConcatDataset(db_train_list)
-train_size = int(config.train.percentageDataForTraining * len(db_train))
-db_train = torch.utils.data.Subset(db_train, range(train_size))
+
 
 # Validation Dataset
 print('config imsize', int(config.train.imgHeight), int(config.train.imgWidth))
@@ -83,13 +84,13 @@ db_val_list = []
 for dataset in config.eval.datasetsSynthetic:
     if dataset.images:
         db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
-                                              transform=None, input_only=None)
+                                              transform=augs_test, input_only=None)
+        train_size = int(config.train.percentageDataForValidation * len(db))
+        db = torch.utils.data.Subset(db, range(train_size))
         db_val_list.append(db)
 
 if db_val_list:
     db_val = torch.utils.data.ConcatDataset(db_val_list)
-    train_size = int(config.train.percentageDataForValidation * len(db_val))
-    db_val = torch.utils.data.Subset(db_val, range(train_size))
 
 # Test Dataset
 db_test_list = []
@@ -102,19 +103,24 @@ if db_test_list:
 
 
 # Create dataloaders
-assert (config.train.batchSize < len(db_train)), 'batchSize cannot be more than the number of images in \
-                                                  training dataset'
-assert (config.train.validationBatchSize < len(db_train)), 'validationBatchSize cannot be more than the number of \
-                                                           images in validation dataset'
-trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
-                         shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 # NOTE: Calculation of statistics like epoch_loss depend on the param drop_last being True. They calculate total num
 #       of images as num of batches * batchSize, which is true only when drop_last=True.
+assert (config.train.batchSize <= len(db_train)), 'batchSize ({}) cannot be more than the number of images in \
+                                                  training dataset ({})' .format(config.train.batchSize,
+                                                                                 len(db_train))
+trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
+                         shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 if db_val_list:
+    assert (config.train.validationBatchSize <= len(db_val)), 'validationBatchSize ({}) cannot be more than the number of \
+                                                             images in validation dataset: {}'\
+                                                             .format(config.train.validationBatchSize, len(db_val))
     validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=False,
                                   num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 if db_test_list:
-    testLoader = DataLoader(db_test, batch_size=config.train.validationBatchSize, shuffle=False,
+    assert (config.train.testBatchSize <= len(db_test)), 'testBatchSize ({}) cannot be more than the number of \
+                                                     images in train dataset ({})'.format(config.train.testBatchSize,
+                                                                                          len(db_test))
+    testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
                             num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 
 ###################### ModelBuilder #############################
@@ -250,7 +256,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     print('\nTrain Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log mIoU
-    miou = total_iou / (len(trainLoader))
+    miou = total_iou / ((len(trainLoader)) * config.train.batchSize)
     writer.add_scalar('data/Train mIoU', miou, total_iter_num)
     print('Train mIoU: {:.4f}'.format(miou))
 
@@ -328,7 +334,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     print('\nValidation Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log mIoU
-    miou = total_iou / (len(trainLoader))
+    miou = total_iou / ((len(validationLoader)) * config.train.validationBatchSize)
     writer.add_scalar('data/Validation mIoU', miou, total_iter_num)
     print('Validation mIoU: {:.4f}'.format(miou))
 

@@ -1,37 +1,46 @@
-# Training Config
+# train.py Config - Training
 train:
   # Synthetic datasets with ground truth labels
   datasets:
-  - images: 'data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs'
-    labels: 'data/datasets/milk-bottles/resized-files/preprocessed-camera-normals'
+    - images: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-outlines'
 
   # Training/Validation Params
-  model: 'unet'  # Possible models: unet
-  backbone: ''  # Possible values: None
-  batchSize: 24  # Batch Size for training
-  validationBatchSize: 24
-  numEpochs: 1500
+  model: 'unet' # Possible values: ['unet']
+  batchSize: 28
+  numEpochs: 50
   imgHeight: 288
   imgWidth: 512
   numClasses: 3
-  numWorkers: 32  # Num of workers used in the dataloader
-  logsDir: 'logs'  # Directory where logs of each exp will be saved.
-  lossFunc: 'cosine'  # Possible values: 'cosine', 'radians'
-  percentageDataForTraining: 0.9  # The percentage of images in dataset to be used for training. Rest used for validation.
+  numInputChannels: 3 # Num of channels in input image. RGB = 3 channels, Grayscale = 1 channel.
+  output_stride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
+  numWorkers: 8 # Num of workers used in the dataloader
+  logsDir: 'logs' # Directory where logs of each exp will be saved.
+  lossFunc: 'cross_entropy2d' # Possible values: ['cross_entropy2d']
+  percentageDataForTraining: 1.0 # The percentage of images in dataset to be used for training. Rest used for validation.
+  validationBatchSize: 32
+  percentageDataForValidation: 1.0
+  testBatchSize: 26
 
-  continueTraining: True  # If true, continue training from a checkpoint
+  continueTraining: False  # If true, continue training from a checkpoint
   pathPrevCheckpoint: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to .pth checkpoint file to load to continue training from
-  initOptimizerFromCheckpoint: False  # Re-Initialize optimizer's state from checkpoint. NOTE: when this is enabled, value of learningRate has no effect.
-  loadEpochNumberFromCheckpoint: True # If true, the epoch/iter numbering will start from the checkpoint's last epoch num.
+  initOptimizerFromCheckpoint: False  # Re-Initialize optimizer's state from checkpoint. NOTE: when this is enabled, value of learningRate will be overridden with value from checkpoint.
+  loadEpochNumberFromCheckpoint: False # If true, the epoch/iter numbering will start from the checkpoint's last epoch num.
 
-  saveImageInterval: 5  # Log output images to tensorboard every saveImageInterval epochs
-  saveModelInterval: 5  # Save the model checkpoints every N epochs
+  saveImageInterval: 5 # Log output images to tensorboard every saveImageInterval epochs
+  testInterval: 1 # Run on test set every nTestInterval epochs. Keep at 0 to skip tests.
+  saveModelInterval: 10 # Save the model checkpoints every N epochs
+
 
   # Optimizer Params
-  adamOptim:
+  optimAdam:
     learningRate: 0.0001
-    weightDecay: 0  # Other values: 0.0001
-  lrScheduler: ''  # Possible Values: ['', 'StepLR', 'ReduceLROnPlateau']
+    weightDecay: 0 # Other values: 0.0001
+  optimSgd:
+    learningRate: 1e-6
+    momentum: 0.9
+    weight_decay: 5e-4
+  lrScheduler: '' # Possible Values: ['', 'StepLR', 'ReduceLROnPlateau']
   lrSchedulerStep:
     step_size: 7
     gamma: 0.1
@@ -40,23 +49,25 @@ train:
     patience: 25
     verbose: True
 
-
-# Testing/Inference Config
+# eval.py Config - Validation/Testing Inference
 eval:
   # Synthetic datasets with ground truth labels
+  # Used as validation set
   datasetsSynthetic:
-  - images: 'data/datasets/test-synthetic-10/resized-files/preprocessed-rgb-imgs'
-    labels: 'data/datasets/test-synthetic-10/resized-files/preprocessed-camera-normals'
+    - images: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-outlines'
 
   # Datasets of real images, no labels available
+  # Used as Test set
   datasetsReal:
-  - images: 'data/datasets/test-real/camera-pics/resized-files/preprocessed-rgb-imgs'
-  - images: 'data/datasets/test-real/realsense-captures/resized-files/preprocessed-rgb-imgs'
+    - images: 'data/datasets/test/camera-pics/resized-files/preprocessed-rgb-imgs'
+    - images: 'data/datasets/test/realsense-captures/resized-files/preprocessed-rgb-imgs'
 
   # Params
-  batchSize: 24
-  numWorkers: 32
-  pathWeightsFile: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth'  # Path to the checkpoint to be loaded
-  resultsDirSynthetic: 'data/results/test-synthetic'  # The dir to which results on synthetic images will be stored
-  resultsDirReal: 'data/results/test-real'   # The dir to which results on real images will be stored
-  resultsHdf5SubDir: 'surface-normals-hdf5'  # The prediction of model will be saved as hdf5 files in this subfolder within the results folder
+  batchSize: 32
+  numWorkers: 8 # Num of workers used in the dataloader
+  pathWeightsFile: 'logs_test/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to the checkpoint to be loaded
+  resultsDirSynthetic: 'data/results/test-synthetic' # The dir to which results on synthetic images will be stored
+  resultsDirReal: 'data/results/test-real'  # The dir to which results on real images will be stored
+  resultsWeightsSubDir: 'occlusion-weights' # The prediction of model will be converted to occlusion weights (for depth2depth) in this subfolder within each results folder
+  resultsWeightsVizSubDir: 'occlusion-weights-viz' # The visualization of the occlusion weights will be saved in this subfolder within resultsWeightsSubDir
