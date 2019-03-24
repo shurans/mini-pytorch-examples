@@ -470,7 +470,7 @@ def create_outlines_training_data(path_depth_file, path_camera_normal_file):
     outlines_rgb_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
                                          SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['folder-name'])
 
-    prefix = os.path.basename(path_depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
+    prefix = os.path.basename(path_depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['postfix'])]
     output_outlines_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines']['postfix'])
     outlines_rgb_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['outlines-rgb']['postfix'])
     output_outlines_file = os.path.join(outlines_dir_path, output_outlines_filename)
