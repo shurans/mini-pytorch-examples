@@ -20,11 +20,14 @@ from utils import utils
 class SurfaceNormalsDataset(Dataset):
     """
     Dataset class for training model on estimation of surface normals.
-    Uses imgaug for image augmentations
+    Uses imgaug for image augmentations.
+
+    If a label_dir is blank ( None, ''), it will assume labels do not exist and return a tensor of zeros
+    for the label.
 
     Args:
-        input_dir (str): Path to folder containing the input images.
-        label_dir (str): Path to folder containing the labels.
+        input_dir (str): Path to folder containing the input images (.png format).
+        label_dir (str): (Optional) Path to folder containing the labels (.png format). If no labels exists, pass empty string.
         transform (imgaug transforms): imgaug Transforms to be applied to the imgs
         input_only (list, str): List of transforms that are to be applied only to the input img
 
@@ -32,7 +35,7 @@ class SurfaceNormalsDataset(Dataset):
 
     def __init__(self,
                  input_dir='data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs',
-                 label_dir='data/datasets/train/milk-bottles-train/resized-files/preprocessed-outlines',
+                 label_dir='',
                  transform=None,
                  input_only=None,
                  ):
@@ -55,7 +58,8 @@ class SurfaceNormalsDataset(Dataset):
         return len(self._datalist_input)
 
     def __getitem__(self, index):
-        '''Returns an item from the dataset at the given index
+        '''Returns an item from the dataset at the given index. If no labels directory has been specified,
+        then a tensor of zeroes will be returned as the label.
 
         Args:
             index (int): index of the item required from dataset.
@@ -65,26 +69,31 @@ class SurfaceNormalsDataset(Dataset):
             torch.Tensor: Tensor of label
         '''
 
-        image_path = self._datalist_input[index]
-        label_path = self._datalist_label[index]
-
         # Open input imgs
+        image_path = self._datalist_input[index]
         _img = Image.open(image_path).convert('RGB')
         _img = np.array(_img)
 
         # Open labels
-        _label = Image.open(label_path).convert('L')
-        _label = np.array(_label)[..., np.newaxis]
+        if self.labels_dir:
+            label_path = self._datalist_label[index]
+            _label = Image.open(label_path).convert('L')
+            _label = np.array(_label)[..., np.newaxis]
 
         # Apply image augmentations and convert to Tensor
         if self.transform:
             det_tf = self.transform.to_deterministic()
             _img = det_tf.augment_image(_img)
             _img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
-            _label = det_tf.augment_image(_label, hooks=ia.HooksImages(activator=self._activator_masks))
+            if self.labels_dir:
+                _label = det_tf.augment_image(_label, hooks=ia.HooksImages(activator=self._activator_masks))
 
+        # Return Tensors
         _img_tensor = transforms.ToTensor()(_img)
-        _label_tensor = transforms.ToTensor()(_label.astype(np.float))
+        if self.labels_dir:
+            _label_tensor = transforms.ToTensor()(_label.astype(np.float))
+        else:
+            _label_tensor = torch.zeros((1, _img_tensor.shape[1], _img_tensor.shape[2]), dtype=torch.float32)
 
         return _img_tensor, _label_tensor
 

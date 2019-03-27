@@ -64,7 +64,7 @@ augs_train = iaa.Sequential([
 ])
 
 db_train_list = []
-for dataset in config.train.datasets:
+for dataset in config.train.datasetsTrain:
     db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
                                           transform=augs_train, input_only=None)
     train_size = int(config.train.percentageDataForTraining * len(db))
@@ -80,7 +80,7 @@ augs_test = iaa.Sequential([
 ])
 
 db_val_list = []
-for dataset in config.eval.datasetsSynthetic:
+for dataset in config.train.datasetsVal:
     if dataset.images:
         db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
                                               transform=augs_test, input_only=None)
@@ -91,14 +91,25 @@ for dataset in config.eval.datasetsSynthetic:
 if db_val_list:
     db_val = torch.utils.data.ConcatDataset(db_val_list)
 
-# Test Dataset
+# Test Dataset - Real
 db_test_list = []
-for dataset in config.eval.datasetsReal:
+for dataset in config.train.datasetsTestReal:
     if dataset.images:
-        db = dataloader.SurfaceNormalsRealImagesDataset(input_dir=dataset.images, transform=augs_test)
+        db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                              transform=augs_test, input_only=None)
         db_test_list.append(db)
 if db_test_list:
     db_test = torch.utils.data.ConcatDataset(db_test_list)
+
+# Test Dataset - Synthetic
+db_test_synthetic_list = []
+for dataset in config.train.datasetsTestSynthetic:
+    if dataset.images:
+        db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                              transform=augs_test, input_only=None)
+        db_test_synthetic_list.append(db)
+if db_test_synthetic_list:
+    db_test_synthetic = torch.utils.data.ConcatDataset(db_test_synthetic_list)
 
 
 # Create dataloaders
@@ -121,6 +132,12 @@ if db_test_list:
                                                                                           len(db_test))
     testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
                             num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+if db_test_synthetic_list:
+    assert (config.train.testBatchSize <= len(db_db_test_synthetic_listtest)), 'testBatchSize ({}) cannot be more than the number of \
+                                                     images in train dataset ({})'.format(config.train.testBatchSize,
+                                                                                          len(db_test_synthetic_list))
+    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=False,
+                                     num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
@@ -343,7 +360,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
                                              labels.detach().cpu(), max_num_images_to_save=10)
         writer.add_image('Validation', grid_image, total_iter_num)
 
-    ###################### Test Cycle #############################
+    ###################### Test Cycle - Real #############################
     if db_test_list:
         print('\nTesting:')
         print('=' * 10)
@@ -370,5 +387,54 @@ for epoch in range(START_EPOCH, END_EPOCH):
             grid_image = utils.create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
                                                  labels.detach().cpu(), max_num_images_to_save=30)
             writer.add_image('Testing', grid_image, total_iter_num)
+
+    ###################### Test Cycle - Synthetic #############################
+    if db_test_synthetic_list:
+        print('\Test Synthetic:')
+        print('=' * 10)
+
+        model.eval()
+
+        running_loss = 0.0
+        total_iou = 0.0
+        for iter_num, sample_batched in enumerate(tqdm(testSyntheticLoader)):
+            inputs, labels = sample_batched
+
+            # Forward pass of the mini-batch
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            with torch.no_grad():
+                outputs = model(inputs)
+
+            loss = criterion(outputs, labels.long().squeeze(1))
+
+            running_loss += loss.item()
+
+            predictions = torch.max(outputs, 1)[1]
+            _total_iou, per_class_iou, num_images_per_class = utils.get_iou(predictions, labels,
+                                                                            n_classes=config.train.numClasses)
+            total_iou += _total_iou
+
+            # Pring loss every 1 Batche
+            # if (iter_num % 1) == 0:
+            #     print('Test Epoch{} Batch{} '.format(epoch, iter_num))
+
+        # Log Epoch Loss
+        epoch_loss = running_loss / (len(testSyntheticLoader))
+        writer.add_scalar('data/Test Synthetic Epoch Loss', epoch_loss, total_iter_num)
+        print('\Test Synthetic Epoch Loss: {:.4f}'.format(epoch_loss))
+
+        # Log mIoU
+        miou = total_iou / ((len(testSyntheticLoader)) * config.train.testBatchSize)
+        writer.add_scalar('data/Test Synthetic mIoU', miou, total_iter_num)
+        print('Test Synthetic mIoU: {:.4f}'.format(miou))
+
+        # Log 30 images every N epochs
+        if (epoch % config.train.saveImageInterval) == 0:
+            grid_image = utils.create_grid_image(inputs.detach().cpu(), outputs.detach().cpu(),
+                                                 labels.detach().cpu(), max_num_images_to_save=10)
+            writer.add_image('Test Synthetic', grid_image, total_iter_num)
+
 
 writer.close()

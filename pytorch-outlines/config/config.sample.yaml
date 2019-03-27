@@ -45,7 +45,9 @@ train:
   # Real Images (no ground truth labels)
   datasetsTestReal:
     - images: 'data/datasets/test/camera-pics/resized-files/preprocessed-rgb-imgs'
+      labels: ''
     - images: 'data/datasets/test/realsense-captures/resized-files/preprocessed-outlines'
+      labels: ''
 
   # Synthetic datasets with ground truth labels - Used as test set
   datasetsTestSynthetic:
