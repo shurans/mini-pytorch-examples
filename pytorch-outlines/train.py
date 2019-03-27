@@ -128,13 +128,13 @@ if db_val_list:
                                   num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 if db_test_list:
     assert (config.train.testBatchSize <= len(db_test)), 'testBatchSize ({}) cannot be more than the number of \
-                                                     images in train dataset ({})'.format(config.train.testBatchSize,
+                                                     images in test dataset ({})'.format(config.train.testBatchSize,
                                                                                           len(db_test))
     testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
                             num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 if db_test_synthetic_list:
-    assert (config.train.testBatchSize <= len(db_test_synthetic_list)), 'testBatchSize ({}) cannot be more than the number of \
-                                                     images in train dataset ({})'.format(config.train.testBatchSize,
+    assert (config.train.testBatchSize <= len(db_test_synthetic)), 'testBatchSize ({}) cannot be more than the number of \
+                                                     images in test dataset ({})'.format(config.train.testBatchSize,
                                                                                           len(db_test_synthetic_list))
     testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=False,
                                      num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
