@@ -75,7 +75,6 @@ db_train = torch.utils.data.ConcatDataset(db_train_list)
 
 
 # Validation Dataset
-print('config imsize', int(config.train.imgHeight), int(config.train.imgWidth))
 augs_test = iaa.Sequential([
     iaa.Resize({"height": config.eval.imgHeight, "width": config.eval.imgWidth}, interpolation='nearest'),
 ])

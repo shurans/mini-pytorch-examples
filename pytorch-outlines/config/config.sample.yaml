@@ -1,0 +1,136 @@
+# train.py Config - Training
+train:
+  # Synthetic datasets with ground truth labels
+  datasetsTrain:
+    - images: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-outlines'
+
+  # Synthetic datasets with ground truth labels - 10% split of train
+  datasetsVal:
+    - images: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-outlines'
+
+  # Real Images (no ground truth labels)
+  datasetsTestReal:
+    - images: 'data/datasets/test/camera-pics/resized-files/preprocessed-rgb-imgs'
+    - images: 'data/datasets/test/realsense-captures/resized-files/preprocessed-outlines'
+
+  # Synthetic datasets with ground truth labels - Used as test set
+  datasetsTestSynthetic:
+    - images: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-outlines'
+    - images: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-outlines'
+
+  # Training/Validation Params
+  model: 'unet' # Possible values: ['unet']
+  batchSize: 28
+  numEpochs: 50
+  imgHeight: 288
+  imgWidth: 512
+  numClasses: 3
+  numInputChannels: 3 # Num of channels in input image. RGB = 3 channels, Grayscale = 1 channel.
+  output_stride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
+  numWorkers: 8 # Num of workers used in the dataloader
+  logsDir: 'logs' # Directory where logs of each exp will be saved.
+  lossFunc: 'cross_entropy2d' # Possible values: ['cross_entropy2d']
+  percentageDataForTraining: 1.0 # The percentage of images in dataset to be used for training. Rest used for validation.
+  validationBatchSize: 32
+  percentageDataForValidation: 1.0
+  testBatchSize: 26
+
+  continueTraining: False  # If true, continue training from a checkpoint
+  pathPrevCheckpoint: 'logs/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to .pth checkpoint file to load to continue training from
+  initOptimizerFromCheckpoint: False  # Re-Initialize optimizer's state from checkpoint. NOTE: when this is enabled, value of learningRate will be overridden with value from checkpoint.
+  loadEpochNumberFromCheckpoint: False # If true, the epoch/iter numbering will start from the checkpoint's last epoch num.
+
+  saveImageInterval: 5 # Log output images to tensorboard every saveImageInterval epochs
+  testInterval: 1 # Run on test set every nTestInterval epochs. Keep at 0 to skip tests.
+  saveModelInterval: 10 # Save the model checkpoints every N epochs
+
+
+  # Optimizer Params
+  optimAdam:
+    learningRate: 0.0001
+    weightDecay: 0 # Other values: 0.0001
+  optimSgd:
+    learningRate: 1e-6
+    momentum: 0.9
+    weight_decay: 5e-4
+  lrScheduler: '' # Possible Values: ['', 'StepLR', 'ReduceLROnPlateau']
+  lrSchedulerStep:
+    step_size: 7
+    gamma: 0.1
+  lrSchedulerPlateau:
+    factor: 0.8
+    patience: 25
+    verbose: True
+
+# eval.py Config - Validation/Testing Inference
+eval:
+  # Synthetic datasets with ground truth labels
+  # Used as validation set
+  datasetsSynthetic:
+    - images: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-rgb-imgs'
+      labels: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-outlines'
+
+  # Datasets of real images, no labels available
+  # Used as Test set
+  datasetsReal:
+    - images: 'data/datasets/test/camera-pics/resized-files/preprocessed-rgb-imgs'
+    - images: 'data/datasets/test/realsense-captures/resized-files/preprocessed-rgb-imgs'
+
+  # Params
+  batchSize: 32
+  imgHeight: 288
+  imgWidth: 512
+  numWorkers: 8 # Num of workers used in the dataloader
+  pathWeightsFile: 'logs_test/exp-000/checkpoints/checkpoint-epoch-0000.pth' # Path to the checkpoint to be loaded
+  resultsDirSynthetic: 'data/results/test-synthetic' # The dir to which results on synthetic images will be stored
+  resultsDirReal: 'data/results/test-real'  # The dir to which results on real images will be stored
+  resultsWeightsSubDir: 'occlusion-weights' # The prediction of model will be converted to occlusion weights (for depth2depth) in this subfolder within each results folder
+  resultsWeightsVizSubDir: 'occlusion-weights-viz' # The visualization of the occlusion weights will be saved in this subfolder within resultsWeightsSubDir

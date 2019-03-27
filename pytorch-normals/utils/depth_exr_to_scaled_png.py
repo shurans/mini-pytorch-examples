@@ -90,8 +90,6 @@ def main():
         for filename in sorted(fnmatch.filter(files, '*depth.exr')):
             name = filename[:-4] + '.png'
             np_image = exr_loader(os.path.join(args.depth_path, filename), ndim=1)
-            np_image = np_image * scale_value
-            np_image = np_image.astype(np.uint16)
             height, width = np_image.shape
 
             # Create a small rectangular hole in input depth, to be filled in by depth2depth module
@@ -101,13 +99,17 @@ def main():
             # Make half the image zero for testing depth2depth
             np_image[h_start:h_stop, w_start:w_stop] = 0.0
 
+            # Scale the depth to create the png file for depth2depth
+            np_image = np_image * scale_value
+            np_image = np_image.astype(np.uint16)
+
             # Convert to PIL
             array_buffer = np_image.tobytes()
             img = Image.new("I", np_image.T.shape)
             img.frombytes(array_buffer, 'raw', 'I;16')
 
             # Resize and save
-            img = img.resize((args.width, args.height), Image.ANTIALIAS)
+            img = img.resize((args.width, args.height), Image.BILINEAR)
             img.save(os.path.join(depth_imgs, name))
 
     print('total ', len([name for name in os.listdir(depth_imgs) if os.path.isfile(
