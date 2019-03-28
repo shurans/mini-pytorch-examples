@@ -120,29 +120,33 @@ if db_test_synthetic_list:
 # Create dataloaders
 # NOTE: Calculation of statistics like epoch_loss depend on the param drop_last being True. They calculate total num
 #       of images as num of batches * batchSize, which is true only when drop_last=True.
-assert (config.train.batchSize <= len(db_train)), 'batchSize ({}) cannot be more than the number of images in \
-                                                  training dataset ({})' .format(config.train.batchSize,
-                                                                                 len(db_train))
+assert (config.train.batchSize <= len(db_train)), \
+    ('batchSize ({}) cannot be more than ' +
+     'the number of images in training dataset ({})').format(config.train.batchSize, len(db_train))
+
 trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
                          shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 if db_val_list:
-    assert (config.train.validationBatchSize <= len(db_val)), 'validationBatchSize ({}) cannot be more than the number of \
-                                                             images in validation dataset: {}'\
-                                                             .format(config.train.validationBatchSize, len(db_val))
-    validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=False,
-                                  num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+    assert (config.train.validationBatchSize <= len(db_val)), \
+        ('validationBatchSize ({}) cannot be more than the ' +
+         'number of images in validation dataset: {}').format(config.train.validationBatchSize, len(db_val))
+
+    validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=True,
+                                  num_workers=config.train.numWorkers, drop_last=True)
 if db_test_list:
-    assert (config.train.testBatchSize <= len(db_test)), 'testBatchSize ({}) cannot be more than the number of \
-                                                     images in test dataset ({})'.format(config.train.testBatchSize,
-                                                                                          len(db_test))
+    assert (config.train.testBatchSize <= len(db_test)), \
+        ('testBatchSize ({}) cannot be more than the ' +
+         'number of images in test dataset: {}').format(config.train.testBatchSize, len(db_test))
+
     testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
-                            num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+                            num_workers=config.train.numWorkers, drop_last=True)
 if db_test_synthetic_list:
-    assert (config.train.testBatchSize <= len(db_test_synthetic)), 'testBatchSize ({}) cannot be more than the number of \
-                                                     images in test dataset ({})'.format(config.train.testBatchSize,
-                                                                                          len(db_test_synthetic_list))
-    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=False,
-                                     num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+    assert (config.train.testBatchSize <= len(db_test_synthetic)), \
+        ('testBatchSize ({}) cannot be more than the ' +
+         'number of images in test dataset: {}').format(config.train.testBatchSize, len(db_test_synthetic_list))
+
+    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=True,
+                                     num_workers=config.train.numWorkers, drop_last=True)
 
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
@@ -243,10 +247,12 @@ for epoch in range(START_EPOCH, END_EPOCH):
     elif config.train.lrScheduler == 'ReduceLROnPlateau':
         lr_scheduler.step(epoch_loss)
     elif config.train.lrScheduler == 'lr_poly':
-        if epoch % p['epoch_size'] == p['epoch_size'] - 1:
-            lr_ = utils.lr_poly(p['lr'], epoch, nEpochs, 0.9)
-            print('(poly lr policy) learning rate: ', lr_)
-            optimizer = optim.SGD(net.parameters(), lr=lr_, momentum=p['momentum'], weight_decay=p['wd'])
+        if epoch % config.train.epochSize == config.train.epochSize - 1:
+            lr_ = utils.lr_poly(config.train.optimSgd.learningRate, epoch - START_EPOCH, END_EPOCH - START_EPOCH, 0.9)
+            # optimizer = optim.SGD(net.parameters(), lr=lr_, momentum=p['momentum'], weight_decay=p['wd'])
+            optimizer = torch.optim.SGD(model.parameters(), lr=config.train.optimSgd.learningRate,
+                                        momentum=config.train.optimSgd.momentum,
+                                        weight_decay=config.train.optimSgd.weight_decay)
 
     model.train()
 
