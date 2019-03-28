@@ -242,6 +242,11 @@ for epoch in range(START_EPOCH, END_EPOCH):
         lr_scheduler.step()
     elif config.train.lrScheduler == 'ReduceLROnPlateau':
         lr_scheduler.step(epoch_loss)
+    elif config.train.lrScheduler == 'lr_poly':
+        if epoch % p['epoch_size'] == p['epoch_size'] - 1:
+            lr_ = utils.lr_poly(p['lr'], epoch, nEpochs, 0.9)
+            print('(poly lr policy) learning rate: ', lr_)
+            optimizer = optim.SGD(net.parameters(), lr=lr_, momentum=p['momentum'], weight_decay=p['wd'])
 
     model.train()
 

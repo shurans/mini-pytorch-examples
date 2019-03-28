@@ -83,7 +83,7 @@ class SurfaceNormalsDataset(Dataset):
         if self.transform:
             det_tf = self.transform.to_deterministic()
             _img = det_tf.augment_image(_img)
-            _img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
+            # img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
             if self.labels_dir:
                 # NOTE! EXPERIMENTAL - needs to be checked.
 

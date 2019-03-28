@@ -34,6 +34,8 @@ def loss_fn_cosine(input_vec, target_vec, reduction='elementwise_mean'):
     loss_cos = 1.0 - cos(input_vec, target_vec)
     if reduction == 'elementwise_mean':
         loss_cos = torch.mean(loss_cos)
+    elif reduction == 'sum':
+        loss_cos = torch.sum(loss_cos)
     elif reduction == 'none':
         pass
     else:
@@ -68,10 +70,13 @@ def loss_fn_radians(input_vec, target_vec, reduction='elementwise_mean'):
 
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     loss_cos = cos(input_vec, target_vec)
+    loss_rad = torch.acos(loss_cos)
     if reduction == 'elementwise_mean':
-        loss_rad = torch.acos(torch.mean(loss_cos))
+        loss_rad = torch.mean(loss_rad)
+    elif reduction == 'sum':
+        loss_rad = torch.sum(loss_rad)
     elif reduction == 'none':
-        loss_rad = torch.acos(loss_cos)
+        pass
     else:
         raise Exception(
             'Invalid value for reduction  parameter passed. Please use \'elementwise_mean\' or \'none\''.format())

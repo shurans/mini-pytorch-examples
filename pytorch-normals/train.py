@@ -291,7 +291,11 @@ for epoch in range(START_EPOCH, END_EPOCH):
         normal_vectors = model(inputs)
         normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
 
-        loss = criterion(normal_vectors_norm, labels, reduction='elementwise_mean')
+        if config.train.model == 'unet':
+            loss = criterion(normal_vectors_norm, labels, reduction='sum')
+        elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
+            loss = criterion(normal_vectors_norm, labels, reduction='sum')
+            loss /= config.train.batchSize
         loss.backward()
         optimizer.step()
 
@@ -360,7 +364,11 @@ for epoch in range(START_EPOCH, END_EPOCH):
             normal_vectors = model(inputs)
 
         normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
-        loss = criterion(normal_vectors_norm, labels, reduction='elementwise_mean')
+        if config.train.model == 'unet':
+            loss = criterion(normal_vectors_norm, labels, reduction='sum')
+        elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
+            loss = criterion(normal_vectors_norm, labels, reduction='sum')
+            loss /= config.train.batchSize
 
         running_loss += loss.item()
 
@@ -389,7 +397,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         model.eval()
 
-        running_loss = 0.0
         for iter_num, sample_batched in enumerate(tqdm(testLoader)):
             inputs, labels = sample_batched
 
@@ -427,7 +434,11 @@ for epoch in range(START_EPOCH, END_EPOCH):
                 normal_vectors = model(inputs)
 
             normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
-            loss = criterion(normal_vectors_norm, labels, reduction='elementwise_mean')
+            if config.train.model == 'unet':
+                loss = criterion(normal_vectors_norm, labels, reduction='sum')
+            elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
+                loss = criterion(normal_vectors_norm, labels, reduction='sum')
+                loss /= config.train.batchSize
 
             running_loss += loss.item()
 
