@@ -237,6 +237,12 @@ for epoch in range(START_EPOCH, END_EPOCH):
     print('Train:')
     print('=' * 10)
 
+    # Update Learning Rate Scheduler
+    if config.train.lrScheduler == 'StepLR':
+        lr_scheduler.step()
+    elif config.train.lrScheduler == 'ReduceLROnPlateau':
+        lr_scheduler.step(epoch_loss)
+
     model.train()
 
     running_loss = 0.0
@@ -280,12 +286,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
     miou = total_iou / ((len(trainLoader)) * config.train.batchSize)
     writer.add_scalar('data/Train mIoU', miou, total_iter_num)
     print('Train mIoU: {:.4f}'.format(miou))
-
-    # Update Learning Rate Scheduler
-    if config.train.lrScheduler == 'StepLR':
-        lr_scheduler.step()
-    elif config.train.lrScheduler == 'ReduceLROnPlateau':
-        lr_scheduler.step(epoch_loss)
 
     # Log Current Learning Rate
     # TODO: NOTE: The lr of adam is not directly accessible. Adam creates a loss for every parameter in model.

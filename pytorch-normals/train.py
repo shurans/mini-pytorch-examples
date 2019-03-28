@@ -151,10 +151,10 @@ if db_test_synthetic_list:
 if config.train.model == 'unet':
     model = unet.Unet(num_classes=config.train.numClasses)
 elif config.train.model == 'deeplab_xception':
-    model = deeplab_xception.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.output_stride,
+    model = deeplab_xception.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.outputStride,
                                             nInputChannels=config.train.numInputChannels, pretrained=True)
 elif config.train.model == 'deeplab_resnet':
-    model = deeplab_resnet.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.output_stride,
+    model = deeplab_resnet.DeepLabv3_plus(n_classes=config.train.numClasses, os=config.train.outputStride,
                                           nInputChannels=config.train.numInputChannels, pretrained=True)
 else:
     raise ValueError('Invalid model "{}" in config file. Must be one of ["unet", "deeplab_xception", "deeplab_resnet"]'
@@ -193,9 +193,9 @@ if config.train.model == 'unet':
     optimizer = torch.optim.Adam(model.parameters(), lr=config.train.optimAdam.learningRate,
                                  weight_decay=config.train.optimAdam.weightDecay)
 elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.train.optimSgd.learningRate,
+    optimizer = torch.optim.SGD(model.parameters(), lr=float(config.train.optimSgd.learningRate),
                                 momentum=config.train.optimSgd.momentum,
-                                weight_decay=config.train.optimSgd.weight_decay)
+                                weight_decay=float(config.train.optimSgd.weight_decay))
 
 if not config.train.lrScheduler:
     pass
@@ -208,6 +208,8 @@ elif config.train.lrScheduler == 'ReduceLROnPlateau':
                                                               factor=config.train.lrSchedulerPlateau.factor,
                                                               patience=config.train.lrSchedulerPlateau.patience,
                                                               verbose=True)
+elif config.train.lrScheduler == 'lr_poly':
+    print('Using Polynomial Learning Rate scheduler')
 else:
     raise ValueError("Invalid Scheduler from config file: '{}'. Valid values are ['', 'StepLR', 'ReduceLROnPlateau']"
                      .format(config.train.lrScheduler))
@@ -257,6 +259,20 @@ for epoch in range(START_EPOCH, END_EPOCH):
     print('Train:')
     print('=' * 10)
 
+    # Update Learning Rate Scheduler
+    if config.train.lrScheduler == 'StepLR':
+        lr_scheduler.step()
+    elif config.train.lrScheduler == 'ReduceLROnPlateau':
+        lr_scheduler.step(epoch_loss)
+    elif config.train.lrScheduler == 'lr_poly':
+        if epoch % config.train.epochSize == config.train.epochSize - 1:
+            lr_ = utils.lr_poly(config.train.optimSgd.learningRate, epoch-START_EPOCH, END_EPOCH-START_EPOCH, 0.9)
+            # optimizer = optim.SGD(net.parameters(), lr=lr_, momentum=p['momentum'], weight_decay=p['wd'])
+            optimizer = torch.optim.SGD(model.parameters(), lr=config.train.optimSgd.learningRate,
+                                        momentum=config.train.optimSgd.momentum,
+                                        weight_decay=config.train.optimSgd.weight_decay)
+
+
     model.train()
 
     running_loss = 0.0
@@ -292,13 +308,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     # Log Epoch Loss
     epoch_loss = running_loss / (len(trainLoader))
     writer.add_scalar('data/Train Epoch Loss', epoch_loss, total_iter_num)
-    print('\nTrain Epoch Loss: {:.4f}\n'.format(epoch_loss))
-
-    # Update Learning Rate Scheduler
-    if config.train.lrScheduler == 'StepLR':
-        lr_scheduler.step()
-    elif config.train.lrScheduler == 'ReduceLROnPlateau':
-        lr_scheduler.step(epoch_loss)
+    print('Train Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log Current Learning Rate
     # TODO: NOTE: The lr of adam is not directly accessible. Adam creates a loss for every parameter in model.
@@ -363,7 +373,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     # Log Epoch Loss
     epoch_loss = running_loss / (len(validationLoader))
     writer.add_scalar('data/Validation Epoch Loss', epoch_loss, total_iter_num)
-    print('\nValidation Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
+    print('Validation Epoch Loss: {:.4f}'.format(epoch_loss))
 
     # Log 10 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:

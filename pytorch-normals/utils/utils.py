@@ -139,3 +139,7 @@ def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
     grid_image = make_grid(images, 1, normalize=True, scale_each=True)
 
     return grid_image
+
+
+def lr_poly(base_lr, iter_, max_iter=100, power=0.9):
+    return base_lr * ((1 - float(iter_) / max_iter) ** power)

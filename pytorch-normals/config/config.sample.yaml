@@ -77,7 +77,6 @@ train:
   imgWidth: 128
   numClasses: 3
   numInputChannels: 3 # Num of channels in input image. RGB = 3 channels, Grayscale = 1 channel.
-  output_stride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
   numWorkers: 8 # Num of workers used in the dataloader
   logsDir: 'logs' # Directory where logs of each exp will be saved.
   lossFunc: 'cosine' # Possible values: ['cosine', 'radians']
@@ -85,6 +84,10 @@ train:
   validationBatchSize: 32
   percentageDataForValidation: 1.0
   testBatchSize: 26
+  # Deeplab specific
+  outputStride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
+  epochSize: 1 # After these many epochs, change learning rate
+
 
   continueTraining: True  # If true, continue training from a checkpoint
   pathPrevCheckpoint: 'logs/exp-001/checkpoints/checkpoint-epoch-0045.pth' # Path to .pth checkpoint file to load to continue training from
