@@ -136,8 +136,9 @@ class SurfaceNormalsDataset(Dataset):
             if numLabels == 0:
                 raise ValueError('No labels found in given directory. Searched for {}'.format(imageSearchStr))
             if numImages != numLabels:
-                raise ValueError('The number of images and labels do not match. Please check data,\
-                                found {} images and {} labels' .format(numImages, numLabels))
+                raise ValueError('The number of images and labels do not match. Please check data,' +
+                                 'found {} images and {} labels in dirs:\n'.format(numImages, numLabels) +
+                                 'images: {}\nlabels: {}\n'.format(images_dir, labels_dir) )
 
         self._datalist_input = imagepaths
         if labels_dir:

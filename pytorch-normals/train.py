@@ -61,12 +61,13 @@ writer.add_text('Config', string, global_step=None)
 augs_train = iaa.Sequential([
     # Geometric Augs
     iaa.Resize({"height": config.train.imgHeight, "width": config.train.imgWidth}, interpolation='nearest'),
-    iaa.Fliplr(0.5),
-    iaa.Flipud(0.5),
-    iaa.Rot90((0, 4)),
+    #iaa.Fliplr(0.5),
+    #iaa.Flipud(0.5),
+    #iaa.Rot90((0, 4)),
+
     # Blur and Noise
-    iaa.Sometimes(0.2, iaa.GaussianBlur(sigma=(0.25, 1.5), name="gaus-blur")),
-    iaa.Sometimes(0.2, iaa.AdditiveLaplaceNoise(scale=(0, 0.1 * 255), per_channel=True, name="gaus-noise")),
+    #iaa.Sometimes(0.2, iaa.GaussianBlur(sigma=(0.25, 1.20), name="gaus-blur")),
+    #iaa.Sometimes(0.2, iaa.AdditiveLaplaceNoise(scale=(0, 0.075 * 255), per_channel=True, name="gaus-noise")),
 ])
 input_only = ["gaus-blur", "gaus-noise"]
 
