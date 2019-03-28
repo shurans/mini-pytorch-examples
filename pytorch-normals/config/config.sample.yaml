@@ -1,46 +1,47 @@
 # train.py Config - Training
 train:
+  # For datasets, please pass atleast 1 value. If no datasets exist, pass "" as path for images.
   # Synthetic datasets with ground truth labels
   datasetsTrain:
-    - images: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-outlines'
+    # - images: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/cup-with-waves-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/flower-bath-bomb-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/heart-bath-bomb-train/resized-files/preprocessed-camera-normals'
     - images: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-outlines'
+      labels: 'data/datasets/train/milk-bottles-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/sphere-bath-bomb-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/star-bath-bomb-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/test-tube-no-cap-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/test-tube-with-cap-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/train/tree-bath-bomb-train/resized-files/preprocessed-camera-normals'
 
   # Synthetic datasets with ground truth labels - 10% split of train
   datasetsVal:
-    - images: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-outlines'
+    # - images: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/cup-with-waves-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/flower-bath-bomb-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/heart-bath-bomb-val/resized-files/preprocessed-camera-normals'
     - images: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-outlines'
+      labels: 'data/datasets/val/milk-bottles-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/sphere-bath-bomb-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/star-bath-bomb-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/test-tube-no-cap-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/test-tube-with-cap-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/val/tree-bath-bomb-val/resized-files/preprocessed-camera-normals'
 
   # Real Images (no ground truth labels)
   datasetsTestReal:
@@ -51,42 +52,45 @@ train:
 
   # Synthetic datasets with ground truth labels - Used as test set
   datasetsTestSynthetic:
-    - images: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-outlines'
-    - images: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-rgb-imgs'
-      labels: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-outlines'
+    - images: ''
+      labels: ''
+
+    # - images: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/scoop-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/scoop-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/short-bottle-no-cap-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/short-bottle-no-cap-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/short-bottle-with-cap-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/short-bottle-with-cap-val/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/stemless-champagne-glass-train/resized-files/preprocessed-camera-normals'
+    # - images: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-rgb-imgs'
+    #   labels: 'data/datasets/test-synthetic/stemless-champagne-glass-val/resized-files/preprocessed-camera-normals'
 
   # Training/Validation Params
   model: 'unet' # Possible values: ['unet', 'deeplab_xception', 'deeplab_resnet']
-  batchSize: 28
-  numEpochs: 100
-  imgHeight: 288
-  imgWidth: 512
+  batchSize: 64
+  numEpochs: 500
+  imgHeight: 128
+  imgWidth: 128
   numClasses: 3
   numInputChannels: 3 # Num of channels in input image. RGB = 3 channels, Grayscale = 1 channel.
   output_stride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
   numWorkers: 8 # Num of workers used in the dataloader
   logsDir: 'logs' # Directory where logs of each exp will be saved.
-  lossFunc: 'cross_entropy2d' # Possible values: ['cross_entropy2d']
+  lossFunc: 'cosine' # Possible values: ['cosine', 'radians']
   percentageDataForTraining: 1.0 # The percentage of images in dataset to be used for training. Rest used for validation.
   validationBatchSize: 32
   percentageDataForValidation: 1.0
   testBatchSize: 26
 
   continueTraining: True  # If true, continue training from a checkpoint
-  pathPrevCheckpoint: 'logs/exp-003/checkpoints/checkpoint-epoch-0020.pth' # Path to .pth checkpoint file to load to continue training from
+  pathPrevCheckpoint: 'logs/exp-001/checkpoints/checkpoint-epoch-0045.pth' # Path to .pth checkpoint file to load to continue training from
   initOptimizerFromCheckpoint: False  # Re-Initialize optimizer's state from checkpoint. NOTE: when this is enabled, value of learningRate will be overridden with value from checkpoint.
   loadEpochNumberFromCheckpoint: False # If true, the epoch/iter numbering will start from the checkpoint's last epoch num.
 
@@ -118,7 +122,7 @@ eval:
   # Used as validation set
   datasetsSynthetic:
     - images: '' #'data/datasets/val/milk-bottles-val/resized-files/preprocessed-rgb-imgs'
-      labels: '' #'data/datasets/val/milk-bottles-val/resized-files/preprocessed-outlines'
+      labels: '' #'data/datasets/val/milk-bottles-val/resized-files/preprocessed-camera-normals'
 
   # Datasets of real images, no labels available
   # Used as Test set
