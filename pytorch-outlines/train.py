@@ -61,12 +61,17 @@ augs_train = iaa.Sequential([
     iaa.Resize({"height": config.train.imgHeight, "width": config.train.imgWidth}, interpolation='nearest'),
     iaa.Fliplr(0.5),
     iaa.Flipud(0.5),
+    iaa.Rot90((0, 4)),
+    # Blur and Noise
+    iaa.Sometimes(0.2, iaa.GaussianBlur(sigma=(0.25, 1.5), name="gaus-blur")),
+    iaa.Sometimes(0.2, iaa.AdditiveLaplaceNoise(scale=(0, 0.1 * 255), per_channel=True, name="gaus-noise")),
 ])
+input_only = ["gaus-blur", "gaus-noise"]
 
 db_train_list = []
 for dataset in config.train.datasetsTrain:
     db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
-                                          transform=augs_train, input_only=None)
+                                          transform=augs_train, input_only=input_only)
     train_size = int(config.train.percentageDataForTraining * len(db))
     db = torch.utils.data.Subset(db, range(train_size))
     db_train_list.append(db)
@@ -173,20 +178,17 @@ if torch.cuda.device_count() > 1:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
-## Loss function ##
-criterion = nn.CrossEntropyLoss(size_average=False, reduce=True)
-
 ###################### Setup Optimizer #############################
 optimizer = torch.optim.Adam(model.parameters(), lr=config.train.optimAdam.learningRate,
                              weight_decay=config.train.optimAdam.weightDecay)
 
 if not config.train.lrScheduler:
     pass
-elif not config.train.lrScheduler and config.train.lrScheduler == 'StepLR':
+elif config.train.lrScheduler == 'StepLR':
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=config.train.lrSchedulerStep.step_size,
                                                    gamma=config.train.lrSchedulerStep.gamma)
-elif not config.train.lrScheduler and config.train.lrScheduler == 'ReduceLROnPlateau':
+elif config.train.lrScheduler == 'ReduceLROnPlateau':
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                               factor=config.train.lrSchedulerPlateau.factor,
                                                               patience=config.train.lrSchedulerPlateau.patience,
@@ -200,16 +202,19 @@ if config.train.continueTraining and config.train.initOptimizerFromCheckpoint:
     if 'optimizer_state_dict' in CHECKPOINT:
         optimizer.load_state_dict(CHECKPOINT['optimizer_state_dict'])
     else:
-        print(colored('Could not load optimizer state from checkpoint, it does not contain "optimizer_state_dict" ',
-                      'red'))
+        print(colored('WARNING: Could not load optimizer state from checkpoint as checkpoint does not contain ' +
+                      '"optimizer_state_dict". Continuing without loading optimizer state. ', 'red'))
+
+## Loss function ##
+criterion = nn.CrossEntropyLoss(size_average=False, reduce=True)
 
 
 ###################### Train Model #############################
 # Set total iter_num (number of batches seen by model, used for logging)
-
 total_iter_num = 0
 START_EPOCH = 0
 END_EPOCH = config.train.numEpochs
+
 if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint):
     if 'model_state_dict' in CHECKPOINT:
         # TODO: remove this second check for 'model_state_dict' soon. Kept for ensuring backcompatibility
@@ -217,8 +222,8 @@ if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint
         START_EPOCH = CHECKPOINT['epoch'] + 1
         END_EPOCH = CHECKPOINT['epoch'] + config.train.numEpochs
     else:
-        print(colored('Could not load epoch and total iter nums from checkpoint, they do not exist in checkpoint',
-                      'red'))
+        print(colored('Could not load epoch and total iter nums from checkpoint, they do not exist in checkpoint.\
+                       Starting from epoch num 0', 'red'))
 
 
 for epoch in range(START_EPOCH, END_EPOCH):
@@ -367,8 +372,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         model.eval()
 
-        running_loss = 0.0
-        total_iou = 0.0
         for iter_num, sample_batched in enumerate(tqdm(testLoader)):
             inputs, labels = sample_batched
 
@@ -377,10 +380,6 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
             with torch.no_grad():
                 outputs = model(inputs)
-
-            # Pring loss every 1 Batche
-            # if (iter_num % 1) == 0:
-            #     print('Test Epoch{} Batch{} '.format(epoch, iter_num))
 
         # Log 30 images every N epochs
         if (epoch % config.train.saveImageInterval) == 0:

@@ -6,14 +6,17 @@ import glob
 import io
 import shutil
 
+from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from termcolor import colored
 import oyaml
 from attrdict import AttrDict
-
+import numpy as np
 from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
+import imgaug as ia
+from imgaug import augmenters as iaa
 
 from models import unet_normals as unet
 from models import deeplab_xception, deeplab_resnet
@@ -54,30 +57,95 @@ for line in config_str:
 writer.add_text('Config', string, global_step=None)
 
 ###################### DataLoader #############################
-# Create a dataset object for each dataset in our list
-db_trainval_list = []
-for dataset in config.train.datasets:
-    dataset = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
-                                               transform=None, input_only=None)
-    db_trainval_list.append(dataset)
+# Train Dataset - Create a dataset object for each dataset in our list, Concatenate datasets, select subset for training
+augs_train = iaa.Sequential([
+    # Geometric Augs
+    iaa.Resize({"height": config.train.imgHeight, "width": config.train.imgWidth}, interpolation='nearest'),
+    iaa.Fliplr(0.5),
+    iaa.Flipud(0.5),
+    iaa.Rot90((0, 4)),
+    # Blur and Noise
+    iaa.Sometimes(0.2, iaa.GaussianBlur(sigma=(0.25, 1.5), name="gaus-blur")),
+    iaa.Sometimes(0.2, iaa.AdditiveLaplaceNoise(scale=(0, 0.1 * 255), per_channel=True, name="gaus-noise")),
+])
+input_only = ["gaus-blur", "gaus-noise"]
 
-# Join all the datasets into 1 large dataset
-db_trainval = torch.utils.data.ConcatDataset(db_trainval_list)
+db_train_list = []
+for dataset in config.train.datasetsTrain:
+    db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                          transform=augs_train, input_only=input_only)
+    train_size = int(config.train.percentageDataForTraining * len(db))
+    db = torch.utils.data.Subset(db, range(train_size))
+    db_train_list.append(db)
 
-# Split into training and validation datasets
-train_size = int(config.train.percentageDataForTraining * len(db_trainval))
-test_size = len(db_trainval) - train_size
-db_train, db_validation = torch.utils.data.random_split(db_trainval, [train_size, test_size])
+db_train = torch.utils.data.ConcatDataset(db_train_list)
+
+
+# Validation Dataset
+augs_test = iaa.Sequential([
+    iaa.Resize({"height": config.train.imgHeight, "width": config.train.imgWidth}, interpolation='nearest'),
+])
+
+db_val_list = []
+for dataset in config.train.datasetsVal:
+    if dataset.images:
+        db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                              transform=augs_test, input_only=None)
+        train_size = int(config.train.percentageDataForValidation * len(db))
+        db = torch.utils.data.Subset(db, range(train_size))
+        db_val_list.append(db)
+
+if db_val_list:
+    db_val = torch.utils.data.ConcatDataset(db_val_list)
+
+# Test Dataset - Real
+db_test_list = []
+for dataset in config.train.datasetsTestReal:
+    if dataset.images:
+        db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                              transform=augs_test, input_only=None)
+        db_test_list.append(db)
+if db_test_list:
+    db_test = torch.utils.data.ConcatDataset(db_test_list)
+
+# Test Dataset - Synthetic
+db_test_synthetic_list = []
+print('config.train.datasetsTestSynthetic', config.train.datasetsTestSynthetic)
+for dataset in config.train.datasetsTestSynthetic:
+    if dataset.images:
+        db = dataloader.SurfaceNormalsDataset(input_dir=dataset.images, label_dir=dataset.labels,
+                                              transform=augs_test, input_only=None)
+        db_test_synthetic_list.append(db)
+if db_test_synthetic_list:
+    db_test_synthetic = torch.utils.data.ConcatDataset(db_test_synthetic_list)
+
 
 # Create dataloaders
-assert (config.train.batchSize < len(db_train)), 'batchSize cannot be more than the number of images in \
-                                                  training dataset'
-assert (config.train.validationBatchSize < len(db_train)), 'validationBatchSize cannot be more than the number of \
-                                                           images in validation dataset'
+# NOTE: Calculation of statistics like epoch_loss depend on the param drop_last being True. They calculate total num
+#       of images as num of batches * batchSize, which is true only when drop_last=True.
+assert (config.train.batchSize <= len(db_train)), 'batchSize ({}) cannot be more than the number of images in \
+                                                  training dataset ({})' .format(config.train.batchSize,
+                                                                                 len(db_train))
 trainLoader = DataLoader(db_train, batch_size=config.train.batchSize,
                          shuffle=True, num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
-validationLoader = DataLoader(db_validation, batch_size=config.train.validationBatchSize, shuffle=False,
-                              num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+if db_val_list:
+    assert (config.train.validationBatchSize <= len(db_val)), 'validationBatchSize ({}) cannot be more than the number of \
+                                                             images in validation dataset: {}'\
+                                                             .format(config.train.validationBatchSize, len(db_val))
+    validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=False,
+                                  num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+if db_test_list:
+    assert (config.train.testBatchSize <= len(db_test)), 'testBatchSize ({}) cannot be more than the number of \
+                                                     images in test dataset ({})'.format(config.train.testBatchSize,
+                                                                                          len(db_test))
+    testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
+                            num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+if db_test_synthetic_list:
+    assert (config.train.testBatchSize <= len(db_test_synthetic)), 'testBatchSize ({}) cannot be more than the number of \
+                                                     images in test dataset ({})'.format(config.train.testBatchSize,
+                                                                                          len(db_test_synthetic_list))
+    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=False,
+                                     num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
 
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
@@ -149,19 +217,17 @@ if config.train.continueTraining and config.train.initOptimizerFromCheckpoint:
     if 'optimizer_state_dict' in CHECKPOINT:
         optimizer.load_state_dict(CHECKPOINT['optimizer_state_dict'])
     else:
-        print(colored('WARNING: Could not load optimizer state from checkpoint as checkpoint does not contain \
-                      "optimizer_state_dict". Continuing without loading optimizer state. ', 'red'))
+        print(colored('WARNING: Could not load optimizer state from checkpoint as checkpoint does not contain ' +
+                      '"optimizer_state_dict". Continuing without loading optimizer state. ', 'red'))
 
 ### Select Loss Func ###
 if config.train.lossFunc == 'cosine':
     criterion = loss_fn_cosine
 elif config.train.lossFunc == 'radians':
     criterion = loss_fn_radians
-elif config.train.lossFunc == 'cross_entropy2d':
-    criterion = cross_entropy2d
 else:
-    raise ValueError("Invalid lossFunc from config file. Can only be ['cosine', 'radians', 'cross_entropy2d'].\
-                     Value passed is: {}".format(config.train.lossFunc))
+    raise ValueError("Invalid lossFunc from config file. Can only be ['cosine', 'radians']. " +
+                     "Value passed is: {}".format(config.train.lossFunc))
 
 
 ###################### Train Model #############################
@@ -181,11 +247,11 @@ if (config.train.continueTraining and config.train.loadEpochNumberFromCheckpoint
                        Starting from epoch num 0', 'red'))
 
 for epoch in range(START_EPOCH, END_EPOCH):
-    print('Epoch {}/{}'.format(epoch, END_EPOCH - 1))
+    print('\n\nEpoch {}/{}'.format(epoch, END_EPOCH - 1))
     print('-' * 30)
 
     # Log the current Epoch Number
-    writer.add_scalar('Epoch Number', epoch, total_iter_num)
+    writer.add_scalar('data/Epoch Number', epoch, total_iter_num)
 
     ###################### Training Cycle #############################
     print('Train:')
@@ -194,7 +260,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
     model.train()
 
     running_loss = 0.0
-    for iter_num, batch in enumerate(trainLoader):
+    for iter_num, batch in enumerate(tqdm(trainLoader)):
         total_iter_num += 1
 
         # Get data
@@ -214,18 +280,18 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         # statistics
         running_loss += loss.item()
-        writer.add_scalar('Train BatchWise Loss', loss.item(), total_iter_num)
+        writer.add_scalar('data/Train BatchWise Loss', loss.item(), total_iter_num)
 
-        # Print loss every 20 Batches
-        if (iter_num % 20) == 0:
-            if config.train.lossFunc == 'cosine':
-                print('Epoch{} Batch{} BatchLoss: {:.4f} (cosine loss)'.format(epoch, iter_num, loss.item()))
-            else:
-                print('Epoch{} Batch{} BatchLoss: {:.4f} radians'.format(epoch, iter_num, loss.item()))
+        # # Print loss every 20 Batches
+        # if (iter_num % 20) == 0:
+        #     if config.train.lossFunc == 'cosine':
+        #         print('Epoch{} Batch{} BatchLoss: {:.4f} (cosine loss)'.format(epoch, iter_num, loss.item()))
+        #     else:
+        #         print('Epoch{} Batch{} BatchLoss: {:.4f} radians'.format(epoch, iter_num, loss.item()))
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(trainLoader))
-    writer.add_scalar('Train Epoch Loss', epoch_loss, total_iter_num)
+    writer.add_scalar('data/Train Epoch Loss', epoch_loss, total_iter_num)
     print('\nTrain Epoch Loss: {:.4f}\n'.format(epoch_loss))
 
     # Update Learning Rate Scheduler
@@ -242,7 +308,8 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     # Log 3 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = utils.create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=3)
+        grid_image = utils.create_grid_image(inputs.detach().cpu(), normal_vectors_norm.detach().cpu(),
+                                             labels.detach().cpu(), max_num_images_to_save=3)
         writer.add_image('Train', grid_image, total_iter_num)
 
     # Save the model checkpoint every N epochs
@@ -265,13 +332,13 @@ for epoch in range(START_EPOCH, END_EPOCH):
         }, filename)
 
     ###################### Validation Cycle #############################
-    print('Validation:')
+    print('\nValidation:')
     print('=' * 10)
 
     model.eval()
 
     running_loss = 0.0
-    for iter_num, sample_batched in enumerate(validationLoader):
+    for iter_num, sample_batched in enumerate(tqdm(validationLoader)):
         inputs, labels = sample_batched
 
         # Forward pass of the mini-batch
@@ -286,21 +353,82 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
         running_loss += loss.item()
 
-        # Pring loss every 20 Batches
-        if (iter_num % 20) == 0:
-            if config.train.lossFunc == 'cosine':
-                print('Epoch{} Batch{} BatchLoss: {:.4f} (cosine loss)'.format(epoch, iter_num, loss.item()))
-            else:
-                print('Epoch{} Batch{} BatchLoss: {:.4f} radians'.format(epoch, iter_num, loss.item()))
+        # # Pring loss every 20 Batches
+        # if (iter_num % 20) == 0:
+        #     if config.train.lossFunc == 'cosine':
+        #         print('Epoch{} Batch{} BatchLoss: {:.4f} (cosine loss)'.format(epoch, iter_num, loss.item()))
+        #     else:
+        #         print('Epoch{} Batch{} BatchLoss: {:.4f} radians'.format(epoch, iter_num, loss.item()))
 
     # Log Epoch Loss
     epoch_loss = running_loss / (len(validationLoader))
-    writer.add_scalar('Validation Epoch Loss', epoch_loss, total_iter_num)
+    writer.add_scalar('data/Validation Epoch Loss', epoch_loss, total_iter_num)
     print('\nValidation Epoch Loss: {:.4f}\n\n'.format(epoch_loss))
 
     # Log 10 images every N epochs
     if (epoch % config.train.saveImageInterval) == 0:
-        grid_image = utils.create_grid_image(inputs, normal_vectors_norm, labels, max_num_images_to_save=10)
+        grid_image = utils.create_grid_image(inputs.detach().cpu(), normal_vectors_norm.detach().cpu(),
+                                             labels.detach().cpu(), max_num_images_to_save=10)
         writer.add_image('Validation', grid_image, total_iter_num)
+
+    ###################### Test Cycle - Real #############################
+    if db_test_list:
+        print('\nTesting:')
+        print('=' * 10)
+
+        model.eval()
+
+        running_loss = 0.0
+        for iter_num, sample_batched in enumerate(tqdm(testLoader)):
+            inputs, labels = sample_batched
+
+            # Forward pass of the mini-batch
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            with torch.no_grad():
+                normal_vectors = model(inputs)
+
+            normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
+
+        # Log 30 images every N epochs
+        if (epoch % config.train.saveImageInterval) == 0:
+            grid_image = utils.create_grid_image(inputs.detach().cpu(), normal_vectors_norm.detach().cpu(),
+                                                 labels.detach().cpu(), max_num_images_to_save=30)
+            writer.add_image('Testing', grid_image, total_iter_num)
+
+    ###################### Test Cycle - Synthetic #############################
+    if db_test_synthetic_list:
+        print('\Test Synthetic:')
+        print('=' * 10)
+
+        model.eval()
+
+        running_loss = 0.0
+        for iter_num, sample_batched in enumerate(tqdm(testSyntheticLoader)):
+            inputs, labels = sample_batched
+
+            # Forward pass of the mini-batch
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            with torch.no_grad():
+                normal_vectors = model(inputs)
+
+            normal_vectors_norm = nn.functional.normalize(normal_vectors, p=2, dim=1)
+            loss = criterion(normal_vectors_norm, labels, reduction='elementwise_mean')
+
+            running_loss += loss.item()
+
+        # Log Epoch Loss
+        epoch_loss = running_loss / (len(testSyntheticLoader))
+        writer.add_scalar('data/Test Synthetic Epoch Loss', epoch_loss, total_iter_num)
+        print('\Test Synthetic Epoch Loss: {:.4f}'.format(epoch_loss))
+
+        # Log 30 images every N epochs
+        if (epoch % config.train.saveImageInterval) == 0:
+            grid_image = utils.create_grid_image(inputs.detach().cpu(), normal_vectors_norm.detach().cpu(),
+                                                 labels.detach().cpu(), max_num_images_to_save=10)
+            writer.add_image('Test Synthetic', grid_image, total_iter_num)
 
 writer.close()

@@ -94,6 +94,24 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
         out.close()
 
 
+def normal_to_rgb(normals_to_convert):
+    '''Converts a surface normals array into an RGB image.
+    Surface normals are represented in a range of (-1,1),
+    This is converted to a range of (0,255) to be written
+    into an image.
+    The surface normals are normally in camera co-ords,
+    with positive z axis coming out of the page. And the axes are
+    mapped as (x,y,z) -> (R,G,B).
+
+    Args:
+        normals_to_convert (numpy.ndarray): Surface normals, dtype float32, range [-1, 1]
+    '''
+    camera_normal_rgb = (normals_to_convert + 1) / 2
+    # camera_normal_rgb *= 127.5
+    # camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
+    return camera_normal_rgb
+
+
 def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
     '''Make a grid of images for display purposes
     Size of grid is (3, N, 3), where each coloum belongs to input, output, label resp
@@ -109,11 +127,15 @@ def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
         numpy.ndarray: A numpy array with of input images arranged in a grid
     '''
 
-    img_tensor = inputs[:max_num_images_to_save].detach()
-    output_tensor = outputs[:max_num_images_to_save].detach()
-    label_tensor = labels[:max_num_images_to_save].detach()
+    img_tensor = inputs[:max_num_images_to_save]
 
-    images = torch.cat((img_tensor, output_tensor, label_tensor), dim=3)
+    output_tensor = outputs[:max_num_images_to_save]
+    output_tensor_rgb = normal_to_rgb(output_tensor)
+
+    label_tensor = labels[:max_num_images_to_save]
+    label_tensor_rgb = normal_to_rgb(label_tensor)
+
+    images = torch.cat((img_tensor, output_tensor_rgb, label_tensor_rgb), dim=3)
     grid_image = make_grid(images, 1, normalize=True, scale_each=True)
 
     return grid_image

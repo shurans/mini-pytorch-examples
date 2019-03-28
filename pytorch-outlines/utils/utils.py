@@ -40,7 +40,7 @@ def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
 
     Args:
         inputs (Tensor): Batch Tensor of shape (B x C x H x W)
-        outputs (Tensor): Batch Tensor of shape (B x C x H x W)
+        outputs (Tensor): Batch Tensor of shape (B x H x W)
         labels (Tensor): Batch Tensor of shape (B x C x H x W)
         max_num_images_to_save (int, optional): Defaults to 3. Out of the given tensors, chooses a
             max number of imaged to put in grid

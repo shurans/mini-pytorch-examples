@@ -19,19 +19,23 @@ from utils import utils
 class SurfaceNormalsDataset(Dataset):
     """
     Dataset class for training model on estimation of surface normals.
-    Uses imgaug for image augmentations
+    Uses imgaug for image augmentations.
+
+    If a label_dir is blank ( None, ''), it will assume labels do not exist and return a tensor of zeros
+    for the label.
 
     Args:
-        input_dir (str): Path to folder containing the input images.
-        label_dir (str): Path to folder containing the labels.
+        input_dir (str): Path to folder containing the input images (.png format).
+        label_dir (str): (Optional) Path to folder containing the labels (.png format).
+                         If no labels exists, pass empty string ('') or None.
         transform (imgaug transforms): imgaug Transforms to be applied to the imgs
         input_only (list, str): List of transforms that are to be applied only to the input img
 
     """
 
     def __init__(self,
-                 input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
-                 label_dir='data/datasets/milk-bottles/resized-files/preprocessed-camera-normals',
+                 input_dir='data/datasets/train/milk-bottles-train/resized-files/preprocessed-rgb-imgs',
+                 label_dir='',
                  transform=None,
                  input_only=None,
                  ):
@@ -54,50 +58,53 @@ class SurfaceNormalsDataset(Dataset):
         return len(self._datalist_input)
 
     def __getitem__(self, index):
-        '''Returns an item from the dataset at the given index
+        '''Returns an item from the dataset at the given index. If no labels directory has been specified,
+        then a tensor of zeroes will be returned as the label.
 
         Args:
             index (int): index of the item required from dataset.
 
-        Raises:
-            ValueError: No transforms are supported atm. Raises error if transforms passed.
-
         Returns:
-            tensor: Tensor of input image
-            tensor: Tensor of label
-            str: filename of input image
+            torch.Tensor: Tensor of input image
+            torch.Tensor: Tensor of label (Tensor of zeroes is labels_dir is "" or None)
         '''
 
-        image_path = self._datalist_input[index]
-        label_path = self._datalist_label[index]
-
         # Open input imgs
+        image_path = self._datalist_input[index]
         _img = Image.open(image_path).convert('RGB')
-
-        tf = transforms.Compose([
-                                transforms.ToTensor(),
-                                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
-        _img = tf(_img)
+        _img = np.array(_img)
 
         # Open labels
-        _label = utils.exr_loader(label_path, ndim=3)
-        _label = torch.from_numpy(_label)
+        if self.labels_dir:
+            label_path = self._datalist_label[index]
+            _label = utils.exr_loader(label_path, ndim=3)  # (3, H, W)
 
         # Apply image augmentations and convert to Tensor
-        if self.transform is not None:
-            raise ValueError('Transforms are not supported for now. Because Surface normals not stored as PIL image,\
-                             cannot apply transforms!')
+        if self.transform:
+            det_tf = self.transform.to_deterministic()
+            _img = det_tf.augment_image(_img)
+            _img = np.ascontiguousarray(_img)  # To prevent errors from negative stride, as caused by fliplr()
+            if self.labels_dir:
+                # NOTE! EXPERIMENTAL - needs to be checked.
 
-        # if self.transform:
-        #     det_tf = self.transform.to_deterministic()
-        #     _img = det_tf.augment_image(_img)
-        #     _newlabel = det_tf.augment_image(_newlabel, hooks=ia.HooksImages(activator=self._activator_masks))
-        # _img = np.ascontiguousarray(_img) # To prevent errors from negative stride, as caused by fliplr()
-        # _img_tensor = transforms.ToTensor()(_img)
-        # Without conversion of numpy to float, the numbers get normalized
-        # _newlabel_tensor = transforms.ToTensor()(_newlabel.astype(np.float))
+                # covert normals into an image of dtype float32 in range [0, 1] from range [-1, 1]
+                _label = (_label + 1) / 2
+                _label = _label.transpose((1, 2, 0))  # (H, W, 3)
 
-        return _img, _label
+                _label = det_tf.augment_image(_label, hooks=ia.HooksImages(activator=self._activator_masks))
+
+                # covert normals back to range [-1, 1]
+                _label = _label.transpose((2, 0, 1))  # (3, H, W)
+                _label = (_label * 2) - 1
+
+        # Return Tensors
+        _img_tensor = transforms.ToTensor()(_img)
+        if self.labels_dir:
+            _label_tensor = torch.from_numpy(_label)
+        else:
+            _label_tensor = torch.zeros((3, _img_tensor.shape[1], _img_tensor.shape[2]), dtype=torch.float32)
+
+        return _img_tensor, _label_tensor
 
     def _create_lists_filenames(self, images_dir, labels_dir):
         '''Creates a list of filenames of images and labels each in dataset
@@ -114,98 +121,37 @@ class SurfaceNormalsDataset(Dataset):
         '''
 
         assert os.path.isdir(images_dir), 'Dataloader given images directory that does not exist: "%s"' % (images_dir)
-        assert os.path.isdir(labels_dir), 'Dataloader given labels directory that does not exist: "%s"' % (labels_dir)
-
         imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
-        labelSearchStr = os.path.join(labels_dir, '*' + self._extension_label)
         imagepaths = sorted(glob.glob(imageSearchStr))
-        labelpaths = sorted(glob.glob(labelSearchStr))
-
-        # Sanity Checks
         numImages = len(imagepaths)
-        numLabels = len(labelpaths)
         if numImages == 0:
             raise ValueError('No images found in given directory. Searched for {}'.format(imageSearchStr))
-        if numLabels == 0:
-            raise ValueError('No labels found in given directory. Searched for {}'.format(imageSearchStr))
-        if numImages != numImages:
-            raise ValueError('The number of images and labels do not match. Please check data,\
-                             found {} images and {} labels'.format(numImages, numLabels))
+
+        if labels_dir:
+            assert os.path.isdir(labels_dir), ('Dataloader given labels directory that does not exist: "%s"'
+                                               % (labels_dir))
+            labelSearchStr = os.path.join(labels_dir, '*' + self._extension_label)
+            labelpaths = sorted(glob.glob(labelSearchStr))
+            numLabels = len(labelpaths)
+            if numLabels == 0:
+                raise ValueError('No labels found in given directory. Searched for {}'.format(imageSearchStr))
+            if numImages != numLabels:
+                raise ValueError('The number of images and labels do not match. Please check data,\
+                                found {} images and {} labels' .format(numImages, numLabels))
 
         self._datalist_input = imagepaths
-        self._datalist_label = labelpaths
+        if labels_dir:
+            self._datalist_label = labelpaths
 
     def _activator_masks(self, images, augmenter, parents, default):
         '''Used with imgaug to help only apply some augmentations to images and not labels
-        Eg: Blur is applied to input only, not label. However, resize is applied to both.m hn
+        Eg: Blur is applied to input only, not label. However, resize is applied to both.
         '''
         if self.input_only and augmenter.name in self.input_only:
             return False
         else:
             return default
 
-
-class SurfaceNormalsRealImagesDataset(Dataset):
-    '''Dataset class for inference on real images with surface normals estimation model.
-    Uses pytorch.transforms for resizing images to the required size.
-
-    Args:
-        input_dir (str, optional): Defaults to 'data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs'. \
-            Path where the images are stored.
-        imgHeight (int, optional): Defaults to 288. Images will be resized to this height.
-        imgWidth (int, optional): Defaults to 512. Images will be resized to this width.
-    '''
-
-    def __init__(self,
-                 input_dir='data/datasets/milk-bottles/resized-files/preprocessed-rgb-imgs',
-                 imgHeight=288,
-                 imgWidth=512,
-                 ):
-
-        super().__init__()
-
-        self.images_dir = input_dir
-        self.height = imgHeight
-        self.width = imgWidth
-
-        # Create list of filenames
-        self._datalist_input = None  # Variable containing list of all input images filenames in dataset
-        self._extension_input = '.png'  # The file extension of input images
-        self._create_lists_filenames(self.images_dir)
-
-    def __len__(self):
-        return len(self._datalist_input)
-
-    def __getitem__(self, index):
-
-        image_path = self._datalist_input[index]
-
-        # Open input imgs
-        _img = Image.open(image_path).convert('RGB')
-
-        tf = transforms.Compose([
-                                transforms.Resize((self.height, self.width), interpolation=Image.BILINEAR),
-                                transforms.ToTensor(),
-                                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-                                ])
-        _img = tf(_img)
-
-        return _img
-
-    def _create_lists_filenames(self, images_dir):
-        '''Create a list of filenames of images in dataset dir.
-        '''
-        assert os.path.isdir(images_dir), 'Dataloader given images directory that does not exist: "%s"' % (images_dir)
-
-        imageSearchStr = os.path.join(images_dir, '*' + self._extension_input)
-        imagepaths = sorted(glob.glob(imageSearchStr))
-
-        # Sanity Checks
-        numImages = len(imagepaths)
-        if numImages == 0:
-            raise ValueError('No images found in given directory. Searched for {}'.format(imageSearchStr))
-
-        self._datalist_input = imagepaths
 
 
 if __name__ == '__main__':
@@ -238,7 +184,7 @@ if __name__ == '__main__':
     #     iaa.Scale((imsize, imsize), 0),
     # ])
 
-    augs = None  # augs_train, augs_test, None
+    augs = None  # augs_train
     input_only = None  # ["gaus-blur", "grayscale", "gaus-noise", "brightness", "contrast", "hue-sat", "color-jitter"]
 
     db_test = SurfaceNormalsDataset(
