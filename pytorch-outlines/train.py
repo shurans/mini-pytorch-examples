@@ -389,7 +389,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     ###################### Test Cycle - Synthetic #############################
     if db_test_synthetic_list:
-        print('\Test Synthetic:')
+        print('\nTest Synthetic:')
         print('=' * 10)
 
         model.eval()

@@ -132,20 +132,20 @@ if db_val_list:
     assert (config.train.validationBatchSize <= len(db_val)), 'validationBatchSize ({}) cannot be more than the number of \
                                                              images in validation dataset: {}'\
                                                              .format(config.train.validationBatchSize, len(db_val))
-    validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=False,
-                                  num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+    validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=True,
+                                  num_workers=config.train.numWorkers, drop_last=True)
 if db_test_list:
     assert (config.train.testBatchSize <= len(db_test)), 'testBatchSize ({}) cannot be more than the number of \
                                                      images in test dataset ({})'.format(config.train.testBatchSize,
-                                                                                          len(db_test))
+                                                                                         len(db_test))
     testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
-                            num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+                            num_workers=config.train.numWorkers, drop_last=True)
 if db_test_synthetic_list:
     assert (config.train.testBatchSize <= len(db_test_synthetic)), 'testBatchSize ({}) cannot be more than the number of \
                                                      images in test dataset ({})'.format(config.train.testBatchSize,
-                                                                                          len(db_test_synthetic_list))
-    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=False,
-                                     num_workers=config.train.numWorkers, drop_last=True, pin_memory=True)
+                                                                                         len(db_test_synthetic_list))
+    testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=True,
+                                     num_workers=config.train.numWorkers, drop_last=True)
 
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
@@ -399,7 +399,7 @@ for epoch in range(START_EPOCH, END_EPOCH):
 
     ###################### Test Cycle - Synthetic #############################
     if db_test_synthetic_list:
-        print('\Test Synthetic:')
+        print('\nTest Synthetic:')
         print('=' * 10)
 
         model.eval()
