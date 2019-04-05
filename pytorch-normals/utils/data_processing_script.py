@@ -602,17 +602,17 @@ def create_rectified_depth_image(path_rendered_depth_file, cos_matrix_y, cos_mat
      Returns:
         bool: False if file exists and it skipped it. True if it created the depth rectified file
     '''
-
     #  Output paths and filenames
     outlines_dir_path = os.path.join(NEW_DATASET_PATHS['root'], NEW_DATASET_PATHS['source-files'],
                                      SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['folder-name'])
 
-    prefix = os.path.basename(path_rendered_depth_file)[0:0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
+    prefix = os.path.basename(path_rendered_depth_file)[0: 0 - len(SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])]
     output_depth_rectified_filename = (prefix + SUBFOLDER_MAP_SYNTHETIC['depth-files-rectified']['postfix'])
     output_depth_rectified_file = os.path.join(outlines_dir_path, output_depth_rectified_filename)
 
     # If outlines file already exists, skip
     if Path(output_depth_rectified_file).is_file():
+        # print('file exists')
         return False
 
     depth_img = exr_loader(path_rendered_depth_file, ndim=1)
@@ -890,6 +890,7 @@ def main():
     ########## STAGE 2: Create Training Data - Camera Normals, Outlines, Rectified Depth ##########
     print('\n\n' + '=' * 20, 'Stage 2 - Create Training Data', '=' * 20)
 
+
     if not (args.test_set):
         # Convert World Normals to Camera Normals
         with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -914,16 +915,18 @@ def main():
             depth_files_dir = os.path.join(src_dir_path, SUBFOLDER_MAP_SYNTHETIC['depth-files']['folder-name'])
             depth_files_list = sorted(glob.glob(
                 os.path.join(depth_files_dir, "*" +
-                             SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])))
+                            SUBFOLDER_MAP_SYNTHETIC['depth-files']['postfix'])))
 
             print("\nRectifiing depth images...")
             # Calculate cos matrices
             depth_img_file_path = depth_files_list[0]
             cos_matrix_y, cos_matrix_x = calculate_cos_matrix(depth_img_file_path, args.fov_y, args.fov_x)
+            cos_matrix_x = [cos_matrix_x] * len(depth_files_list)
+            cos_matrix_y = [cos_matrix_y] * len(depth_files_list)
 
             # Apply Cos matrices to rectify depth
             results = list(tqdm.tqdm(executor.map(create_rectified_depth_image, depth_files_list,
-                                     cos_matrix_y, cos_matrix_x), total=len(depth_files_list)))
+                                    cos_matrix_y, cos_matrix_x), total=len(depth_files_list)))
             print(colored('\n  rectified {} depth images'.format(results.count(True)), 'green'))
             print(colored('  Skipped {} depth images'.format(results.count(False)), 'red'))
 
