@@ -133,21 +133,21 @@ if db_val_list:
          'number of images in validation dataset: {}').format(config.train.validationBatchSize, len(db_val))
 
     validationLoader = DataLoader(db_val, batch_size=config.train.validationBatchSize, shuffle=True,
-                                  num_workers=config.train.numWorkers, drop_last=True)
+                                  num_workers=config.train.numWorkers, drop_last=False)
 if db_test_list:
     assert (config.train.testBatchSize <= len(db_test)), \
         ('testBatchSize ({}) cannot be more than the ' +
          'number of images in test dataset: {}').format(config.train.testBatchSize, len(db_test))
 
     testLoader = DataLoader(db_test, batch_size=config.train.testBatchSize, shuffle=False,
-                            num_workers=config.train.numWorkers, drop_last=True)
+                            num_workers=config.train.numWorkers, drop_last=False)
 if db_test_synthetic_list:
     assert (config.train.testBatchSize <= len(db_test_synthetic)), \
         ('testBatchSize ({}) cannot be more than the ' +
          'number of images in test dataset: {}').format(config.train.testBatchSize, len(db_test_synthetic_list))
 
     testSyntheticLoader = DataLoader(db_test_synthetic, batch_size=config.train.testBatchSize, shuffle=True,
-                                     num_workers=config.train.numWorkers, drop_last=True)
+                                     num_workers=config.train.numWorkers, drop_last=False)
 
 ###################### ModelBuilder #############################
 if config.train.model == 'unet':
