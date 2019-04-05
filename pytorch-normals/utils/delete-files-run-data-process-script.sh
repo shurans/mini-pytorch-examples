@@ -83,36 +83,29 @@ rm -rf short-bottle-with-cap-train/resized-files/preprocessed-outlines
 
 # running data pre-processing script
 echo 'running pre-processing script'
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root sccop-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root sccop-train --num_start 49
 
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root sphere-bath-bomb-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root sphere-bath-bomb-train --num_start 49
+cd ../../utils
 
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root tree-bath-bomb-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root tree-bath-bomb-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root star-bath-bomb-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root star-bath-bomb-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root test-tube-with-cap-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root test-tube-with-cap-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root test-tube-no-cap-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root test-tube-no-cap-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root cup-with-waves-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root cup-with-waves-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root heart-bath-bomb-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root heart-bath-bomb-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root stemless-champagne-glass-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root stemless-champagne-glass-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root flower-bath-bomb-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root flower-bath-bomb-train --num_start 49
-
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root short-bottle-with-cap-val --num_start 0
-python ../../utils/data_processing_script.py --p ../data/datasets/train/empt --root short-bottle-with-cap-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/sccop-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/sccop-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/sphere-bath-bomb-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/sphere-bath-bomb-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/tree-bath-bomb-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/tree-bath-bomb-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/star-bath-bomb-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/star-bath-bomb-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/test-tube-with-cap-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/test-tube-with-cap-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/test-tube-no-cap-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/test-tube-no-cap-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/cup-with-waves-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/cup-with-waves-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/heart-bath-bomb-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/heart-bath-bomb-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/stemless-champagne-glass-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/stemless-champagne-glass-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/flower-bath-bomb-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/flower-bath-bomb-train --num_start 49
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/short-bottle-with-cap-val --num_start 0
+python data_processing_script.py --p ../data/datasets/empt --root ../data/datasets/short-bottle-with-cap-train --num_start 49
 
