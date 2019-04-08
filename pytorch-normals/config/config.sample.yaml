@@ -72,6 +72,8 @@ train:
   # Training/Validation Params
   model: 'unet' # Possible values: ['unet', 'deeplab_xception', 'deeplab_resnet']
   batchSize: 64
+  validationBatchSize: 32
+  testBatchSize: 26
   numEpochs: 500
   imgHeight: 128
   imgWidth: 128
@@ -81,9 +83,8 @@ train:
   logsDir: 'logs' # Directory where logs of each exp will be saved.
   lossFunc: 'cosine' # Possible values: ['cosine', 'radians']
   percentageDataForTraining: 1.0 # The percentage of images in dataset to be used for training. Rest used for validation.
-  validationBatchSize: 32
   percentageDataForValidation: 1.0
-  testBatchSize: 26
+
   # Deeplab specific
   outputStride: 8 # Possible values: [8, 16]. Output stride for deeplabv3 model. Smaller values give finer details in output mask.
   epochSize: 1 # After these many epochs, change learning rate

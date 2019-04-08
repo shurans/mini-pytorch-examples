@@ -192,11 +192,11 @@ model = model.to(device)
 
 ###################### Setup Optimizer #############################
 if config.train.model == 'unet':
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.train.optimAdam.learningRate,
-                                 weight_decay=config.train.optimAdam.weightDecay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(config.train.optimAdam.learningRate),
+                                 weight_decay=float(config.train.optimAdam.weightDecay))
 elif config.train.model == 'deeplab_xception' or config.train.model == 'deeplab_resnet':
     optimizer = torch.optim.SGD(model.parameters(), lr=float(config.train.optimSgd.learningRate),
-                                momentum=config.train.optimSgd.momentum,
+                                momentum=float(config.train.optimSgd.momentum),
                                 weight_decay=float(config.train.optimSgd.weight_decay))
 
 if not config.train.lrScheduler:
@@ -204,10 +204,10 @@ if not config.train.lrScheduler:
 elif config.train.lrScheduler == 'StepLR':
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=config.train.lrSchedulerStep.step_size,
-                                                   gamma=config.train.lrSchedulerStep.gamma)
+                                                   gamma=float(config.train.lrSchedulerStep.gamma))
 elif config.train.lrScheduler == 'ReduceLROnPlateau':
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                              factor=config.train.lrSchedulerPlateau.factor,
+                                                              factor=float(config.train.lrSchedulerPlateau.factor),
                                                               patience=config.train.lrSchedulerPlateau.patience,
                                                               verbose=True)
 elif config.train.lrScheduler == 'lr_poly':
@@ -268,11 +268,11 @@ for epoch in range(START_EPOCH, END_EPOCH):
         lr_scheduler.step(epoch_loss)
     elif config.train.lrScheduler == 'lr_poly':
         if epoch % config.train.epochSize == config.train.epochSize - 1:
-            lr_ = utils.lr_poly(config.train.optimSgd.learningRate, epoch - START_EPOCH, END_EPOCH - START_EPOCH, 0.9)
-            # optimizer = optim.SGD(net.parameters(), lr=lr_, momentum=p['momentum'], weight_decay=p['wd'])
-            optimizer = torch.optim.SGD(model.parameters(), lr=config.train.optimSgd.learningRate,
-                                        momentum=config.train.optimSgd.momentum,
-                                        weight_decay=config.train.optimSgd.weight_decay)
+            lr_ = utils.lr_poly(float(config.train.optimSgd.learningRate), int(epoch - START_EPOCH),
+                                int(END_EPOCH - START_EPOCH), 0.9)
+            optimizer = torch.optim.SGD(model.parameters(), lr=lr_,
+                                        momentum=float(config.train.optimSgd.momentum),
+                                        weight_decay=float(config.train.optimSgd.weight_decay))
 
     model.train()
 
