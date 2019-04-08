@@ -63,9 +63,4 @@ You can also view a graph of the model. Note that bilinear upsampling is not yet
 - Added code
 
 ## Dependency
-(Imageio)[https://imageio.readthedocs.io/en/stable/installation.html]:
-```
-$ conda install -c conda-forge imageio
-#or
-$ pip install imageio
-```
+Check readme within `pytorch-normals/`

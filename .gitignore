@@ -1,19 +1,37 @@
-pytorch-seg/data/*
-!pytorch-seg/data/datalist
-!pytorch-seg/data/pytorchviz-digraph*
-!pytorch-seg/data/*.png
-pytorch-seg/train-model-exp1.sh
 
-__pycache__/
-!checkpoints/.gitkeep
-checkpoints/
-!logs/.gitkeep
-logs/
-models/__pycache__/
-
+# PYTORCH NORMALS
 pytorch-normals/.ipynb_checkpoints/*
+pytorch-normals/logs*
+
+!pytorch-normals/data/
+
 pytorch-normals/data/*
-!pytorch-normals/data/datalist
-!pytorch-normals/data/*.png
-pytorch-normals/logs
-pytorch-normals/Test_misc_functions.ipynb
+!pytorch-normals/data/results/
+!pytorch-normals/data/datasets/
+!pytorch-normals/data/depth2depth_sample_files/
+pytorch-normals/data/results/*
+!pytorch-normals/data/results/.gitkeep
+pytorch-normals/data/datasets/*
+!pytorch-normals/data/datasets/.gitkeep
+
+# PYTORCH OUTLINES
+pytorch-outlines/.ipynb_checkpoints/*
+pytorch-outlines/logs*
+
+!pytorch-outlines/data/
+pytorch-outlines/data/*
+!pytorch-outlines/data/results/
+!pytorch-outlines/data/datasets/
+!pytorch-outlines/data/depth2depth_sample_files/
+pytorch-outlines/data/results/*
+!pytorch-outlines/data/results/.gitkeep
+pytorch-outlines/data/datasets/*
+!pytorch-outlines/data/datasets/.gitkeep
+
+
+# COMMON
+config*.yaml
+!config.sample.yaml
+__pycache__/
+.mypy_cache/
+.vscode/
